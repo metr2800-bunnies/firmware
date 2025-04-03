@@ -6,7 +6,7 @@
 #define LED_GPIO GPIO_NUM_2
 
 /* timer interrupt configuration constants */
-#define CPU_TIMER_FREQUENCY_HZ      80000000
+#define CPU_TIMER_FREQ_HZ           80000000
 #define TIMER_DIVIDER               80
 #define TIMER_FREQ_HZ_NUMERATOR     1
 #define TIMER_FREQ_HZ_DENOMINATOR   2
