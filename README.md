@@ -1,5 +1,7 @@
 # ESP32 Firmware
 
+Documentation for the SDK (ESP-IDF) can be found [here](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/index.html).
+
 ## Setup
 
 Requires Python and Git.
@@ -19,6 +21,7 @@ cd esp-idf
 ```
 
 On Windows:
+
 Install [ESP-IDF Tools](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/windows-setup.html)
 
 ## Build
@@ -28,7 +31,6 @@ working. i.e. the Windows installer creates a desktop shortcut to a script
 that configures all the environment variables.
 
 ```
-cd main
 idf.py set-target esp32
 idf.py build
 idf.py -p [PORT] flash monitor
