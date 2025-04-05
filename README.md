@@ -31,7 +31,7 @@ working. i.e. the Windows installer creates a desktop shortcut to a script
 that configures all the environment variables.
 
 ```
-idf.py set-target esp32
-idf.py build
-idf.py -p [PORT] flash monitor
+idf.py set-target esp32-s3
+idf.py update-dependencies
+idf.py -p PORT build flash monitor
 ```

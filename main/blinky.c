@@ -2,23 +2,44 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "led_strip.h"
 
-#define LED_GPIO GPIO_NUM_2
+#define LED_GPIO            GPIO_NUM_38
+#define LED_STRIP_LENGTH    1
+#define LED_BRIGHTNESS      0.05    // neopixel LEDs are bright man
 
-/* timer config constants */
 #define TIMER_RESOLUTION_HZ         1000000
 #define TIMER_FREQ_HZ_NUMERATOR     5
 #define TIMER_FREQ_HZ_DENOMINATOR   2
 
 static gptimer_handle_t gptimer = 0;
+static led_strip_handle_t led_strip;
 volatile uint8_t state = 0;
 
-static bool
-IRAM_ATTR timer_interrupt(gptimer_handle_t timer,
+void
+configure_led(void)
+{
+    led_strip_config_t strip_config = {
+        .strip_gpio_num = LED_GPIO,
+        .max_leds = LED_STRIP_LENGTH,
+        .led_model = LED_MODEL_WS2812,
+        .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB,
+        .flags.invert_out = false,
+    };
+    led_strip_rmt_config_t rmt_config = {
+        .clk_src = RMT_CLK_SRC_DEFAULT,
+        .resolution_hz = 10 * 1000 * 1000,
+        .mem_block_symbols = 0,
+        .flags.with_dma = true,
+    };
+    ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
+}
+
+static bool IRAM_ATTR
+timer_interrupt(gptimer_handle_t timer,
         const gptimer_alarm_event_data_t *eventData, void *userData)
 {
-    state ^= 1;
-    gpio_set_level(LED_GPIO, state);
+    state = (state + 1) % 3;
     return true;
 }
 
@@ -33,8 +54,7 @@ timer_setup(void)
     ESP_ERROR_CHECK(gptimer_new_timer(&timerConfig, &gptimer));
 
     gptimer_alarm_config_t alarmConfig = {
-        .alarm_count = TIMER_RESOLUTION_HZ * TIMER_FREQ_HZ_DENOMINATOR
-            / TIMER_FREQ_HZ_NUMERATOR,
+        .alarm_count = TIMER_RESOLUTION_HZ * TIMER_FREQ_HZ_DENOMINATOR / TIMER_FREQ_HZ_NUMERATOR,
         .reload_count = 0,
         .flags.auto_reload_on_alarm = true,
     };
@@ -52,11 +72,38 @@ timer_setup(void)
 void
 app_main(void)
 {
-    gpio_reset_pin(LED_GPIO);
-    gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);
+    configure_led();
     timer_setup();
 
+    uint8_t last_state = 255;
+
     while (1) {
-        vTaskDelay(portMAX_DELAY);
+        if (last_state != state) {
+            last_state = state;
+            uint8_t r, g, b;
+            switch (state) {
+                case 0:
+                    r = (uint8_t)(255 * LED_BRIGHTNESS);
+                    g = 0;
+                    b = 0;
+                    break;
+                case 1:
+                    r = 0;
+                    g = (uint8_t)(255 * LED_BRIGHTNESS);
+                    b = 0;
+                    break;
+                case 2:
+                    r = 0;
+                    g = 0;
+                    b = (uint8_t)(255 * LED_BRIGHTNESS);
+                    break;
+                default:
+                    r = g = b = 0;
+                    break;
+            }
+            ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, r, g, b));
+            ESP_ERROR_CHECK(led_strip_refresh(led_strip));
+        }
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
