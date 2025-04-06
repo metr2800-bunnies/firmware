@@ -16,7 +16,6 @@ typedef void *quadrature_encoder_handle_t;
  *      - ESP_ERR_NOT_FOUND: No free interrupt found with the specified flags
  *      - ESP_ERR_INVALID_ARG: GPIO error
  */
-
 esp_err_t quadrature_encoder_init(void);
 
 /**
@@ -33,13 +32,6 @@ esp_err_t quadrature_encoder_init(void);
  */
 esp_err_t quadrature_encoder_create(int channel_a_pin, int channel_b_pin,
         quadrature_encoder_handle_t *ret_handle);
-
-/**
- * @brief Delete and release a quadrature encoder
- *
- * @param handle Quadrature encoder handle
- */
-void quadrature_encoder_delete(quadrature_encoder_handle_t handle);
 
 /**
  * @brief Get encoder count

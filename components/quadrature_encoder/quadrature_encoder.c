@@ -64,6 +64,9 @@ quadrature_encoder_create(int channel_a_pin, int channel_b_pin, quadrature_encod
     *ret_handle = encoder;
     return ESP_OK;
 err:
+    if (encoder != NULL) {
+        free(encoder)
+    }
     return ret;
 }
 
@@ -71,6 +74,9 @@ void
 quadrature_encoder_delete(quadrature_encoder_handle_t handle)
 {
     quadrature_encoder_dev_t *encoder = (quadrature_encoder_dev_t *)handle;
+    if (encoder == NULL) {
+        return;
+    }
     gpio_isr_handler_remove(encoder->channel_a_pin);
     gpio_isr_handler_remove(encoder->channel_b_pin);
     free(encoder);
@@ -80,6 +86,9 @@ esp_err_t
 quadrature_encoder_get_count(quadrature_encoder_handle_t handle, int32_t *ret_count)
 {
     quadrature_encoder_dev_t *encoder = (quadrature_encoder_dev_t *)handle;
+    if (encoder == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
     // FIXME: consider disabling interrupts here to make this atomic
     *ret_count = encoder->count;
     return ESP_OK;
@@ -89,6 +98,9 @@ esp_err_t
 quadrature_encoder_set_count(quadrature_encoder_handle_t handle, int32_t count)
 {
     quadrature_encoder_dev_t *encoder = (quadrature_encoder_dev_t *)handle;
+    if (encoder == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
     // FIXME: consider disabling interrupts here to make this atomic
     encoder->count = count;
     return ESP_OK;
