@@ -1,6 +1,7 @@
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 #include "esp_check.h"
+#include "tb6612fng.h"
 
 #define LEDC_TIMER              LEDC_TIMER_0
 #define LEDC_MODE               LEDC_LOW_SPEED_MODE
@@ -14,7 +15,7 @@ typedef struct {
     float speed;
 } tb6612fng_channel_dev_t;
 
-static const char *TAG = "TB6612FNG"
+static const char *TAG = "TB6612FNG";
 
 static int next_ledc_channel = 0;
 
@@ -29,6 +30,7 @@ tb6612fng_init(void)
         .clk_cfg = LEDC_AUTO_CLK,
     };
     ESP_RETURN_ON_ERROR(ledc_timer_config(&timer_config), TAG, "failed to initialise LEDC timer");
+    return ESP_OK;
 }
 
 esp_err_t
@@ -49,7 +51,7 @@ tb6612fng_channel_create(int in1_pin, int in2_pin, int speed_pin, tb6612fng_chan
         .pin_bit_mask = (1ULL << in1_pin) | (1ULL << in2_pin),
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_up_en = GPIO_PULLDOWN_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_DISABLE,
     };
     gpio_config(&io_config);
@@ -103,13 +105,13 @@ tb6612fng_channel_set_drive(tb6612fng_channel_handle_t handle, tb6612fng_channel
             return ESP_ERR_INVALID_ARG;
     }
 
-    ESP_RETURN_ON_ERROR(ledc_set_duty(LEDC_MODE, handle->ledc_channel, duty), TAG, "failed to set PWM duty cycle");
-    ESP_RETURN_ON_ERROR(ledc_update_duty(LEDC_MODE, handle->ledc_channel), TAG, "failed to update PWM duty cycle");
-    handle->speed = speed;
+    ESP_RETURN_ON_ERROR(ledc_set_duty(LEDC_MODE, channel->ledc_channel, duty), TAG, "failed to set PWM duty cycle");
+    ESP_RETURN_ON_ERROR(ledc_update_duty(LEDC_MODE, channel->ledc_channel), TAG, "failed to update PWM duty cycle");
+    channel->speed = speed;
 
-    ESP_RETURN_ON_ERROR(gpio_set_level(in1_pin, in1), TAG, "failed to set IN1");
-    ESP_RETURN_ON_ERROR(gpio_set_level(in2_pin, in2), TAG, "failed to set IN2");
-    handle->mode = mode;
+    ESP_RETURN_ON_ERROR(gpio_set_level(channel->in1_pin, in1), TAG, "failed to set IN1");
+    ESP_RETURN_ON_ERROR(gpio_set_level(channel->in2_pin, in2), TAG, "failed to set IN2");
+    channel->mode = mode;
 
     return ESP_OK;
 }

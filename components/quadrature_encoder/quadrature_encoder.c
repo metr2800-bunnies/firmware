@@ -65,7 +65,7 @@ quadrature_encoder_create(int channel_a_pin, int channel_b_pin, quadrature_encod
     return ESP_OK;
 err:
     if (encoder != NULL) {
-        free(encoder)
+        free(encoder);
     }
     return ret;
 }
