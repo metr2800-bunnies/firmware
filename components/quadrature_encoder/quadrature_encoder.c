@@ -1,6 +1,3 @@
-#ifndef _QUADRATURE_ENCODER_H_
-#define _QUADRATURE_ENCODER_H_
-
 #include "quadrature_encoder.h"
 #include "esp_check.h"
 #include "esp_attr.h"
@@ -96,5 +93,3 @@ quadrature_encoder_set_count(quadrature_encoder_handle_t handle, int32_t count)
     encoder->count = count;
     return ESP_OK;
 }
-
-#endif
