@@ -3,6 +3,17 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "led_strip.h"
+#include "quadrature_encoder.h"
+
+/* ENCODER GPIO */
+#define ENCODER1A_GPIO  GPIO_NUM_12
+#define ENCODER1B_GPIO  GPIO_NUM_11
+#define ENCODER2A_GPIO  GPIO_NUM_14
+#define ENCODER2B_GPIO  GPIO_NUM_13
+#define ENCODER3A_GPIO  GPIO_NUM_20
+#define ENCODER3B_GPIO  GPIO_NUM_19
+#define ENCODER4A_GPIO  GPIO_NUM_47
+#define ENCODER4B_GPIO  GPIO_NUM_21
 
 #define LED_GPIO            GPIO_NUM_38
 #define LED_STRIP_LENGTH    1
@@ -14,9 +25,9 @@
 
 static gptimer_handle_t gptimer = 0;
 static led_strip_handle_t led_strip;
-volatile uint8_t state = 0;
+static volatile uint8_t state = 0;
 
-void
+static void
 configure_led(void)
 {
     led_strip_config_t strip_config = {
@@ -43,7 +54,7 @@ timer_interrupt(gptimer_handle_t timer,
     return true;
 }
 
-void
+static void
 timer_setup(void)
 {
     gptimer_config_t timerConfig = {
@@ -69,11 +80,24 @@ timer_setup(void)
     ESP_ERROR_CHECK(gptimer_start(gptimer));
 }
 
+static quadrature_encoder_handle_t encoders[4] = {};
+
+static void
+encoder_setup(void)
+{
+    quadrature_encoder_init();
+    ESP_ERROR_CHECK(quadrature_encoder_create(ENCODER1A_GPIO, ENCODER1B_GPIO, &encoders[0]));
+    ESP_ERROR_CHECK(quadrature_encoder_create(ENCODER2A_GPIO, ENCODER2B_GPIO, &encoders[0]));
+    ESP_ERROR_CHECK(quadrature_encoder_create(ENCODER3A_GPIO, ENCODER3B_GPIO, &encoders[0]));
+    ESP_ERROR_CHECK(quadrature_encoder_create(ENCODER4A_GPIO, ENCODER4B_GPIO, &encoders[0]));
+}
+
 void
 app_main(void)
 {
     configure_led();
     timer_setup();
+    encoder_setup();
 
     uint8_t last_state = 255;
 
@@ -82,24 +106,10 @@ app_main(void)
             last_state = state;
             uint8_t r, g, b;
             switch (state) {
-                case 0:
-                    r = (uint8_t)(255 * LED_BRIGHTNESS);
-                    g = 0;
-                    b = 0;
-                    break;
-                case 1:
-                    r = 0;
-                    g = (uint8_t)(255 * LED_BRIGHTNESS);
-                    b = 0;
-                    break;
-                case 2:
-                    r = 0;
-                    g = 0;
-                    b = (uint8_t)(255 * LED_BRIGHTNESS);
-                    break;
-                default:
-                    r = g = b = 0;
-                    break;
+                case 0: r = (uint8_t)(255 * LED_BRIGHTNESS); g = 0; b = 0; break;
+                case 1: r = 0; g = (uint8_t)(255 * LED_BRIGHTNESS); b = 0; break;
+                case 2: r = 0; g = 0; b = (uint8_t)(255 * LED_BRIGHTNESS); break;
+                default: r = g = b = 0; break;
             }
             ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, r, g, b));
             ESP_ERROR_CHECK(led_strip_refresh(led_strip));

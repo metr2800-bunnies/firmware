@@ -1,4 +1,5 @@
 idf_component_register(
-    SRCS "blinky.c"
+    SRCS "main.c"
     INCLUDE_DIRS "."
+    REQUIRES quadrature_encoder
 )
