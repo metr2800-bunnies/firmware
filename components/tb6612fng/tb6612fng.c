@@ -85,11 +85,11 @@ tb6612fng_channel_set_drive(tb6612fng_channel_handle_t handle, tb6612fng_channel
 {
     tb6612fng_channel_dev_t *channel = (tb6612fng_channel_dev_t *)handle;
     if (channel == NULL) {
-        return ESP_ERR_INVALID_ARGUMENT;
+        return ESP_ERR_INVALID_ARG;
     }
 
     if (speed < 0.0f || speed > 1.0f) {
-        return ESP_ERR_INVALID_ARGUMENT;
+        return ESP_ERR_INVALID_ARG;
     }
     uint32_t duty = (uint32_t)(speed * DUTY_RANGE);
 
@@ -98,15 +98,18 @@ tb6612fng_channel_set_drive(tb6612fng_channel_handle_t handle, tb6612fng_channel
         case TB6612FNG_SHORT_BRAKE: in1 = 1; in2 = 1; break;
         case TB6612FNG_CCW: in1 = 0; in2 = 1; break;
         case TB6612FNG_CW: in1 = 1; in2 = 0; break;
-        case TB6612FNG_STOP: in1 = 0; in2 = 0; duty = DUTY_RANGE; break;
+        case TB6612FNG_STOP: in1 = 0; in2 = 0; duty = DUTY_RANGE; speed = 1.0f; break; // STOP requires 100% duty
         default:
-            return ESP_ERR_INVALID_ARGUMENT;
+            return ESP_ERR_INVALID_ARG;
     }
 
     ESP_RETURN_ON_ERROR(ledc_set_duty(LEDC_MODE, handle->ledc_channel, duty), TAG, "failed to set PWM duty cycle");
     ESP_RETURN_ON_ERROR(ledc_update_duty(LEDC_MODE, handle->ledc_channel), TAG, "failed to update PWM duty cycle");
+    handle->speed = speed;
+
     ESP_RETURN_ON_ERROR(gpio_set_level(in1_pin, in1), TAG, "failed to set IN1");
     ESP_RETURN_ON_ERROR(gpio_set_level(in2_pin, in2), TAG, "failed to set IN2");
+    handle->mode = mode;
 
     return ESP_OK;
 }
@@ -116,7 +119,7 @@ tb6612fng_channel_get_drive(tb6612fng_channel_handle_t handle, tb6612fng_channel
 {
     tb6612fng_channel_dev_t *channel = (tb6612fng_channel_dev_t *)handle;
     if (channel == NULL) {
-        return ESP_ERR_INVALID_ARGUMENT;
+        return ESP_ERR_INVALID_ARG;
     }
     *ret_mode = channel->mode;
     *ret_speed = channel->speed;
