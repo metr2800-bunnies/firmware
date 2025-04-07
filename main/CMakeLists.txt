@@ -1,5 +1,5 @@
 idf_component_register(
     SRCS "main.c"
     INCLUDE_DIRS "."
-    REQUIRES quadrature_encoder
+    REQUIRES quadrature_encoder tb6612fng
 )
