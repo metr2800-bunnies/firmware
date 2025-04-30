@@ -1,3 +1,4 @@
+#include "driver/i2c_master.h"
 #include "driver/gptimer.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
@@ -5,6 +6,7 @@
 #include "led_strip.h"
 #include "quadrature_encoder.h"
 #include "tb6612fng.h"
+#include "mpu6050.h"
 
 /* ENCODER GPIO */
 #define ENCODER1A_GPIO  GPIO_NUM_12
@@ -30,14 +32,33 @@
 #define MOTOR4_IN2_GPIO GPIO_NUM_41
 #define MOTOR4_PWM_GPIO GPIO_NUM_42
 
+/* I2C GPIO */
+#define SDA_GPIO        GPIO_NUM_1
+#define SCL_GPIO        GPIO_NUM_4
+#define I2C_PORT_NUM    I2C_NUM_0
+
+/* LIMIT SWITCH GPIO */
+#define LIM1_GPIO   GPIO_NUM_45
+#define LIM2_GPIO   GPIO_NUM_35
+#define LIM3_GPIO   GPIO_NUM_9
+#define LIM4_GPIO   GPIO_NUM_10
+
+/* SERVO GPIO */
+#define SERVO1_GPIO     GPIO_NUM_18
+#define SERVO2_GPIO     GPIO_NUM_8
+#define SERVO3_GPIO     GPIO_NUM_46
+
+/* PUSHBUTTON GPIO */
+#define BOOT_BUTTON_GPIO    GPIO_NUM_0
+
 /* LED GPIO */
 #define LED_GPIO            GPIO_NUM_38
 #define LED_STRIP_LENGTH    1
 #define LED_BRIGHTNESS      0.05    // neopixel LEDs are bright man
 
 #define TIMER_RESOLUTION_HZ         1000000
-#define TIMER_FREQ_HZ_NUMERATOR     5
-#define TIMER_FREQ_HZ_DENOMINATOR   2
+#define TIMER_FREQ_HZ_NUMERATOR     1
+#define TIMER_FREQ_HZ_DENOMINATOR   4
 
 static gptimer_handle_t gptimer = 0;
 static led_strip_handle_t led_strip;
@@ -68,6 +89,43 @@ timer_interrupt(gptimer_handle_t timer,
 {
     state = (state + 1) % 3;
     return true;
+}
+
+static void
+i2c_setup(void)
+{
+    i2c_config_t config = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = SDA_GPIO,
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_io_num = SCL_GPIO,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master.clk_speed = 400000,
+    };
+
+    ESP_ERROR_CHECK(i2c_param_config(I2C_PORT_NUM, &config));
+    ESP_ERROR_CHECK(i2c_driver_install(I2C_PORT_NUM, config.mode, 0, 0, 0));
+}
+
+mpu6050_handle_t mpu6050 = NULL;
+
+static void
+mpu6050_setup(void)
+{
+    // this other library (https://github.com/PiotrTopa/esp32-MPU6050) seems to support using DMP, which would be
+    // kinda nice if we hadn't run out of GPIOs already.
+
+    mpu6050 = mpu6050_create(I2C_PORT_NUM, MPU6050_I2C_ADDRESS);
+    ESP_ERROR_CHECK(mpu6050_config(mpu6050, ACCE_FS_16G, GYRO_FS_2000DPS)); // probably don't need full range
+
+    uint8_t id = 0;
+    ESP_ERROR_CHECK(mpu6050_get_deviceid(mpu6050, &id));
+
+    if (id == MPU6050_WHO_AM_I_VAL) {
+        ESP_LOGI("main", "ID checks out");
+    } else {
+        ESP_LOGE("main", "Bad ID: %d", (int)id);
+    }
 }
 
 static void
@@ -127,6 +185,8 @@ app_main(void)
     timer_setup();
     encoder_setup();
     motor_setup();
+    i2c_setup();
+    mpu6050_setup();
 
     tb6612fng_channel_set_drive(motors[0], TB6612FNG_CCW, 0.2f);
     tb6612fng_channel_set_drive(motors[1], TB6612FNG_CW, 0.4f);
