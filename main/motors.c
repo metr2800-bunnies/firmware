@@ -2,12 +2,21 @@
 #include "quadrature_encoder.h"
 #include "tb6612fng.h"
 
+#define TICKS_PER_REV       341.2f
+#define MAX_INTEGRAL_ERROR  50.0f
+
+#define KP  0.8
+#define KI  1.2
+#define KD  0.05
+
 typedef struct {
     quadrature_encoder_handle_t encoder;
     tb6612fng_channel_handle_t driver;
     float target_rpm;
     int last_tick_count;
     float last_rpm;
+    float integral_error;
+    float last_error;
 } motor_t;
 
 static motor_t motors[4] = {};
@@ -50,10 +59,52 @@ motors_control_update(int motor_index, int frequency_hz)
     motor_t *motor = motors[motor_index];
 
     /* turn encoder readings into RPM */
+    int32_t count = motor->last_tick_count;
+    quadrature_encoder_get_count(motor->encoder, &count);
+    int32_t delta = count - motor->last_tick_count;
+    motor->last_tick_count = count;
+    motor->last_rpm = delta / TICKS_PER_REV;
 
+    /* PID stuff */
     float error = motor->target_rpm - motor->last_rpm;
     float proportional = Kp * error;
-    float integral = 
+
+    motor->integral_error += error / frequency_hz;
+    if (motor->integral_error > MAX_INTEGRAL_ERROR) {
+        motor->integral_error = MAX_INTEGRAL_ERROR;
+    } else if (motor->integral_error < -MAX_INTEGRAL_ERROR) {
+        motor->integral_error = -MAX_INTEGRAL_ERROR;
+    }
+    float integral = Ki * motor->integral_error;
+
+    float derivative = Kd * (error - motor->last_error) * frequency_hz;
+    motor->last_error = error;
+
+    tb6612fng_channel_drive_t mode = TB6612FNG_STOP;
+    float speed = 0.0f;
+    tb6612fng_channel_get_drive(motor->channel, &mode, &speed);
+    if (mode == TB6612FNG_CCW) {
+        speed = -speed;
+    }
+
+    speed = speed + proportional + integral + derivative;
+
+    /* make sure values are sane */
+    if (speed < 0) {
+        speed = -speed;
+        mode = TB6612FNG_CCW;
+    } else {
+        mode = TB6612FNG_CW;
+    }
+
+    if (speed < 1e-6) {
+        speed = 0;
+        mode = TB6612FNG_STOP;
+    } else if (speed > 1.0f) {
+        speed = 1.0f;
+    }
+
+    tb6612fng_channel_set_drive(motor->channel, mode, speed);
 }
 
 float
