@@ -1,0 +1,30 @@
+#pragma once
+
+/* ENCODER GPIO */
+#define ENCODER1A_GPIO  GPIO_NUM_12
+#define ENCODER1B_GPIO  GPIO_NUM_11
+#define ENCODER2A_GPIO  GPIO_NUM_14
+#define ENCODER2B_GPIO  GPIO_NUM_13
+#define ENCODER3A_GPIO  GPIO_NUM_47
+#define ENCODER3B_GPIO  GPIO_NUM_21
+#define ENCODER4A_GPIO  GPIO_NUM_43
+#define ENCODER4B_GPIO  GPIO_NUM_44
+
+/* MOTOR GPIO */
+#define MOTOR1_IN1_GPIO GPIO_NUM_7
+#define MOTOR1_IN2_GPIO GPIO_NUM_6
+#define MOTOR1_PWM_GPIO GPIO_NUM_5
+#define MOTOR2_IN1_GPIO GPIO_NUM_15
+#define MOTOR2_IN2_GPIO GPIO_NUM_16
+#define MOTOR2_PWM_GPIO GPIO_NUM_17
+#define MOTOR3_IN1_GPIO GPIO_NUM_39
+#define MOTOR3_IN2_GPIO GPIO_NUM_37
+#define MOTOR3_PWM_GPIO GPIO_NUM_36
+#define MOTOR4_IN1_GPIO GPIO_NUM_40
+#define MOTOR4_IN2_GPIO GPIO_NUM_41
+#define MOTOR4_PWM_GPIO GPIO_NUM_42
+
+void motors_init(void);
+void motors_set_rpm(float rpm);
+void motors_control_update(int frequency_hz);
+float motors_get_rpm(void);

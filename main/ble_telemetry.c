@@ -23,8 +23,6 @@ static uint16_t telemetry_char_handle;
 static bool telemetry_subscribed = false;
 static SemaphoreHandle_t ble_init_semaphore;
 
-extern telemetry_data_t telemetry;
-
 static const ble_uuid16_t gatt_svr_svc_uuid = BLE_UUID16_INIT(SERVICE_UUID);
 static const ble_uuid16_t gatt_svr_chr_telemetry_uuid = BLE_UUID16_INIT(TELEM_CHAR_UUID);
 

@@ -4,33 +4,8 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "led_strip.h"
-#include "quadrature_encoder.h"
-#include "tb6612fng.h"
 #include "mpu6050.h"
-
-/* ENCODER GPIO */
-#define ENCODER1A_GPIO  GPIO_NUM_12
-#define ENCODER1B_GPIO  GPIO_NUM_11
-#define ENCODER2A_GPIO  GPIO_NUM_14
-#define ENCODER2B_GPIO  GPIO_NUM_13
-#define ENCODER3A_GPIO  GPIO_NUM_47
-#define ENCODER3B_GPIO  GPIO_NUM_21
-#define ENCODER4A_GPIO  GPIO_NUM_43
-#define ENCODER4B_GPIO  GPIO_NUM_44
-
-/* MOTOR GPIO */
-#define MOTOR1_IN1_GPIO GPIO_NUM_7
-#define MOTOR1_IN2_GPIO GPIO_NUM_6
-#define MOTOR1_PWM_GPIO GPIO_NUM_5
-#define MOTOR2_IN1_GPIO GPIO_NUM_15
-#define MOTOR2_IN2_GPIO GPIO_NUM_16
-#define MOTOR2_PWM_GPIO GPIO_NUM_17
-#define MOTOR3_IN1_GPIO GPIO_NUM_39
-#define MOTOR3_IN2_GPIO GPIO_NUM_37
-#define MOTOR3_PWM_GPIO GPIO_NUM_36
-#define MOTOR4_IN1_GPIO GPIO_NUM_40
-#define MOTOR4_IN2_GPIO GPIO_NUM_41
-#define MOTOR4_PWM_GPIO GPIO_NUM_42
+#include "motors.h"
 
 /* I2C GPIO */
 #define SDA_GPIO        GPIO_NUM_1
@@ -154,44 +129,16 @@ timer_setup(void)
     ESP_ERROR_CHECK(gptimer_start(gptimer));
 }
 
-static quadrature_encoder_handle_t encoders[4] = {};
-
-static void
-encoder_setup(void)
-{
-    ESP_ERROR_CHECK(quadrature_encoder_init());
-    ESP_ERROR_CHECK(quadrature_encoder_create(ENCODER1A_GPIO, ENCODER1B_GPIO, &encoders[0]));
-    ESP_ERROR_CHECK(quadrature_encoder_create(ENCODER2A_GPIO, ENCODER2B_GPIO, &encoders[1]));
-    ESP_ERROR_CHECK(quadrature_encoder_create(ENCODER3A_GPIO, ENCODER3B_GPIO, &encoders[2]));
-    ESP_ERROR_CHECK(quadrature_encoder_create(ENCODER4A_GPIO, ENCODER4B_GPIO, &encoders[3]));
-}
-
-static tb6612fng_channel_handle_t motors[4] = {};
-
-static void
-motor_setup(void)
-{
-    ESP_ERROR_CHECK(tb6612fng_init());
-    ESP_ERROR_CHECK(tb6612fng_channel_create(MOTOR1_IN1_GPIO, MOTOR1_IN2_GPIO, MOTOR1_PWM_GPIO, &motors[0]));
-    ESP_ERROR_CHECK(tb6612fng_channel_create(MOTOR2_IN1_GPIO, MOTOR2_IN2_GPIO, MOTOR2_PWM_GPIO, &motors[1]));
-    ESP_ERROR_CHECK(tb6612fng_channel_create(MOTOR3_IN1_GPIO, MOTOR3_IN2_GPIO, MOTOR3_PWM_GPIO, &motors[2]));
-    ESP_ERROR_CHECK(tb6612fng_channel_create(MOTOR4_IN1_GPIO, MOTOR4_IN2_GPIO, MOTOR4_PWM_GPIO, &motors[3]));
-}
-
 void
 app_main(void)
 {
     configure_led();
     timer_setup();
     encoder_setup();
-    motor_setup();
+    motors_init();
     i2c_setup();
     mpu6050_setup();
 
-    tb6612fng_channel_set_drive(motors[0], TB6612FNG_CCW, 0.2f);
-    tb6612fng_channel_set_drive(motors[1], TB6612FNG_CW, 0.4f);
-    tb6612fng_channel_set_drive(motors[2], TB6612FNG_CCW, 0.6f);
-    tb6612fng_channel_set_drive(motors[3], TB6612FNG_CW, 0.8f);
 
     uint8_t last_state = 255;
 
@@ -203,7 +150,7 @@ app_main(void)
                 case 0: r = (uint8_t)(255 * LED_BRIGHTNESS); g = 0; b = 0; break;
                 case 1: r = 0; g = (uint8_t)(255 * LED_BRIGHTNESS); b = 0; break;
                 case 2: r = 0; g = 0; b = (uint8_t)(255 * LED_BRIGHTNESS); break;
-                default r = g = b = 0; break;
+                default: r = g = b = 0; break;
             }
             ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, r, g, b));
             ESP_ERROR_CHECK(led_strip_refresh(led_strip));
