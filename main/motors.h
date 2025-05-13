@@ -25,6 +25,6 @@
 #define MOTOR4_PWM_GPIO GPIO_NUM_42
 
 void motors_init(void);
-void motors_set_rpm(float rpm);
-void motors_control_update(int frequency_hz);
-float motors_get_rpm(void);
+void motors_set_rpm(int motor, float rpm);
+void motors_control_update(int motor, int frequency_hz);
+float motors_get_rpm(int motor);

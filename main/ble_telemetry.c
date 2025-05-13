@@ -3,6 +3,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include "driver/gptimer.h"
+#include "driver/gpio.h"
 
 /* BLE */
 #include "nimble/nimble_port.h"
@@ -15,6 +17,9 @@
 #include "services/gatt/ble_svc_gatt.h"
 #include "ble_telemetry.h"
 
+#define TIMER_RESOLUTION_HZ     1000000
+#define TIMER_FREQ_HZ           10
+
 static const char *tag = "BLE";
 static int ble_app_gap_event(struct ble_gap_event *event, void *arg);
 static uint8_t own_addr_type;
@@ -22,6 +27,10 @@ static uint16_t conn_handle = BLE_HS_CONN_HANDLE_NONE;
 static uint16_t telemetry_char_handle;
 static bool telemetry_subscribed = false;
 static SemaphoreHandle_t ble_init_semaphore;
+static SemaphoreHandle_t telemetry_loop_semaphore;
+static gptimer_handle_t gptimer = 0;
+
+telemetry_data_t telemetry = {};
 
 static const ble_uuid16_t gatt_svr_svc_uuid = BLE_UUID16_INIT(SERVICE_UUID);
 static const ble_uuid16_t gatt_svr_chr_telemetry_uuid = BLE_UUID16_INIT(TELEM_CHAR_UUID);
@@ -32,14 +41,51 @@ telemetry_access_cb(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_
     return 0; // Allow all operations
 }
 
+static bool IRAM_ATTR
+timer_interrupt(gptimer_handle_t timer,
+        const gptimer_alarm_event_data_t *eventData, void *userData)
+{
+    BaseType_t higher_priority_task_woken = pdFALSE;
+    xSemaphoreGiveFromISR(telemetry_loop_semaphore, &higher_priority_task_woken);
+    portYIELD_FROM_ISR(higher_priority_task_woken);
+    return true;
+}
+
+static void
+timer_setup(void)
+{
+    gptimer_config_t timerConfig = {
+        .clk_src = GPTIMER_CLK_SRC_DEFAULT,
+        .direction = GPTIMER_COUNT_UP,
+        .resolution_hz = TIMER_RESOLUTION_HZ,
+    };
+    ESP_ERROR_CHECK(gptimer_new_timer(&timerConfig, &gptimer));
+
+    gptimer_alarm_config_t alarmConfig = {
+        .alarm_count = TIMER_RESOLUTION_HZ / TIMER_FREQ_HZ,
+        .reload_count = 0,
+        .flags.auto_reload_on_alarm = true,
+    };
+    ESP_ERROR_CHECK(gptimer_set_alarm_action(gptimer, &alarmConfig));
+
+    gptimer_event_callbacks_t callbacks = {
+        .on_alarm = timer_interrupt,
+    };
+    ESP_ERROR_CHECK(gptimer_register_event_callbacks(gptimer, &callbacks, 0));
+
+    ESP_ERROR_CHECK(gptimer_enable(gptimer));
+    ESP_ERROR_CHECK(gptimer_start(gptimer));
+}
+
 void
 telemetry_task(void *param) {
     xSemaphoreTake(ble_init_semaphore, portMAX_DELAY);
     ESP_LOGI(tag, "Telemetry task started");
 
-    telemetry_data_t telemetry = {0};
     while (1) {
         if (conn_handle != BLE_HS_CONN_HANDLE_NONE && telemetry_subscribed) {
+            telemetry.packet_num = xTaskGetTickCount();
+            // telemetry.packet_num += 1;
             struct os_mbuf *om = ble_hs_mbuf_from_flat(&telemetry, sizeof(telemetry));
             if (om) {
                 int rc = ble_gattc_notify_custom(conn_handle, telemetry_char_handle, om);
@@ -50,7 +96,7 @@ telemetry_task(void *param) {
                 ESP_LOGE(tag, "Failed to allocate mbuf");
             }
         }
-        vTaskDelay(100 / portTICK_PERIOD_MS); // 10Hz
+        xSemaphoreTake(telemetry_loop_semaphore, portMAX_DELAY);
     }
 }
 
@@ -313,5 +359,7 @@ ble_telemetry_init(void)
 
     nimble_port_freertos_init(host_task);
 
+    timer_setup();
+    telemetry_loop_semaphore = xSemaphoreCreateBinary();
     xTaskCreate(telemetry_task, "telemetry_task", 4096, NULL, 5, NULL);
 }

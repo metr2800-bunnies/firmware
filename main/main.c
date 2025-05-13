@@ -6,6 +6,9 @@
 #include "led_strip.h"
 #include "mpu6050.h"
 #include "motors.h"
+#include "ble_telemetry.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
 
 /* I2C GPIO */
 #define SDA_GPIO        GPIO_NUM_1
@@ -31,13 +34,14 @@
 #define LED_STRIP_LENGTH    1
 #define LED_BRIGHTNESS      0.05    // neopixel LEDs are bright man
 
-#define TIMER_RESOLUTION_HZ         1000000
-#define TIMER_FREQ_HZ_NUMERATOR     1
-#define TIMER_FREQ_HZ_DENOMINATOR   4
+#define TIMER_RESOLUTION_HZ     1000000
+#define TIMER_FREQ_HZ           10
 
+static const char *tag = "TABLEBOT";
+
+static SemaphoreHandle_t control_loop_semaphore;
 static gptimer_handle_t gptimer = 0;
 static led_strip_handle_t led_strip;
-static volatile uint8_t state = 0;
 
 static void
 configure_led(void)
@@ -62,45 +66,10 @@ static bool IRAM_ATTR
 timer_interrupt(gptimer_handle_t timer,
         const gptimer_alarm_event_data_t *eventData, void *userData)
 {
-    state = (state + 1) % 3;
+    BaseType_t higher_priority_task_woken = pdFALSE;
+    xSemaphoreGiveFromISR(control_loop_semaphore, &higher_priority_task_woken);
+    portYIELD_FROM_ISR(higher_priority_task_woken);
     return true;
-}
-
-static void
-i2c_setup(void)
-{
-    i2c_config_t config = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = SDA_GPIO,
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_io_num = SCL_GPIO,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = 400000,
-    };
-
-    ESP_ERROR_CHECK(i2c_param_config(I2C_PORT_NUM, &config));
-    ESP_ERROR_CHECK(i2c_driver_install(I2C_PORT_NUM, config.mode, 0, 0, 0));
-}
-
-mpu6050_handle_t mpu6050 = NULL;
-
-static void
-mpu6050_setup(void)
-{
-    // this other library (https://github.com/PiotrTopa/esp32-MPU6050) seems to support using DMP, which would be
-    // kinda nice if we hadn't run out of GPIOs already.
-
-    mpu6050 = mpu6050_create(I2C_PORT_NUM, MPU6050_I2C_ADDRESS);
-    ESP_ERROR_CHECK(mpu6050_config(mpu6050, ACCE_FS_16G, GYRO_FS_2000DPS)); // probably don't need full range
-
-    uint8_t id = 0;
-    ESP_ERROR_CHECK(mpu6050_get_deviceid(mpu6050, &id));
-
-    if (id == MPU6050_WHO_AM_I_VAL) {
-        ESP_LOGI("main", "ID checks out");
-    } else {
-        ESP_LOGE("main", "Bad ID: %d", (int)id);
-    }
 }
 
 static void
@@ -114,7 +83,7 @@ timer_setup(void)
     ESP_ERROR_CHECK(gptimer_new_timer(&timerConfig, &gptimer));
 
     gptimer_alarm_config_t alarmConfig = {
-        .alarm_count = TIMER_RESOLUTION_HZ * TIMER_FREQ_HZ_DENOMINATOR / TIMER_FREQ_HZ_NUMERATOR,
+        .alarm_count = TIMER_RESOLUTION_HZ / TIMER_FREQ_HZ,
         .reload_count = 0,
         .flags.auto_reload_on_alarm = true,
     };
@@ -132,29 +101,57 @@ timer_setup(void)
 void
 app_main(void)
 {
+    control_loop_semaphore = xSemaphoreCreateBinary();
     configure_led();
     timer_setup();
-    encoder_setup();
     motors_init();
-    i2c_setup();
-    mpu6050_setup();
+    ble_telemetry_init();
 
+    gpio_config_t io_conf = {
+        .pin_bit_mask = 1ULL << BOOT_BUTTON_GPIO,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE
+    };
+    gpio_config(&io_conf);
 
-    uint8_t last_state = 255;
-
+    int state = 0;
     while (1) {
-        if (last_state != state) {
-            last_state = state;
-            uint8_t r, g, b;
-            switch (state) {
-                case 0: r = (uint8_t)(255 * LED_BRIGHTNESS); g = 0; b = 0; break;
-                case 1: r = 0; g = (uint8_t)(255 * LED_BRIGHTNESS); b = 0; break;
-                case 2: r = 0; g = 0; b = (uint8_t)(255 * LED_BRIGHTNESS); break;
-                default: r = g = b = 0; break;
-            }
-            ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, r, g, b));
-            ESP_ERROR_CHECK(led_strip_refresh(led_strip));
+        switch (state) {
+            case 0:
+                ESP_LOGI(tag, "Initialising");
+                ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, 255, 0, 0));
+                ESP_ERROR_CHECK(led_strip_refresh(led_strip));
+                motors_set_rpm(0, 0);
+                motors_set_rpm(1, 0);
+                motors_set_rpm(2, 0);
+                motors_set_rpm(3, 0);
+                state = 1;
+                break;
+            case 1:
+                if (!gpio_get_level(BOOT_BUTTON_GPIO)) {
+                    ESP_LOGI(tag, "Button pushed");
+                    state = 2;
+                }
+                break;
+            case 2:
+                ESP_LOGI(tag, "Setting target RPM");
+                ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, 0, 255, 0));
+                ESP_ERROR_CHECK(led_strip_refresh(led_strip));
+                motors_set_rpm(0, 30);
+                motors_set_rpm(1, 30);
+                motors_set_rpm(2, -30);
+                motors_set_rpm(3, -30);
+                state = 3;
+                break;
+            case 3:
+                motors_control_update(0, TIMER_FREQ_HZ);
+                motors_control_update(1, TIMER_FREQ_HZ);
+                motors_control_update(2, TIMER_FREQ_HZ);
+                motors_control_update(3, TIMER_FREQ_HZ);
+                break;
         }
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        xSemaphoreTake(control_loop_semaphore, portMAX_DELAY);
     }
 }

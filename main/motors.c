@@ -1,8 +1,10 @@
 #include "motors.h"
 #include "quadrature_encoder.h"
 #include "tb6612fng.h"
+#include "ble_telemetry.h"
 
 #define TICKS_PER_REV       341.2f
+#define ENCODER_RESOLUTION  ((TICKS_PER_REV) * 4)
 #define MAX_INTEGRAL_ERROR  50.0f
 
 #define KP  0.8
@@ -43,7 +45,7 @@ void
 motors_set_rpm(int motor_index, float rpm)
 {
     if (motor_index < 0 || motor_index > 3) {
-        ESP_LOGE("invalid motor index %d. ignoring.", motor_index);
+        //ESP_LOGE("invalid motor index %d. ignoring.", motor_index);
         return;
     }
     motors[motor_index].target_rpm = rpm;
@@ -53,21 +55,24 @@ void
 motors_control_update(int motor_index, int frequency_hz)
 {
     if (motor_index < 0 || motor_index > 3) {
-        ESP_LOGE("invalid motor index %d. ignoring.", motor_index);
+        //ESP_LOGE("invalid motor index %d. ignoring.", motor_index);
         return;
     }
-    motor_t *motor = motors[motor_index];
+    motor_t *motor = &motors[motor_index];
 
     /* turn encoder readings into RPM */
     int32_t count = motor->last_tick_count;
     quadrature_encoder_get_count(motor->encoder, &count);
     int32_t delta = count - motor->last_tick_count;
     motor->last_tick_count = count;
-    motor->last_rpm = delta / TICKS_PER_REV;
+    motor->last_rpm = delta / ENCODER_RESOLUTION * frequency_hz * 60;
+
+    telemetry.encoder_counts[motor_index] = count;
+    telemetry.rpms[motor_index] = motor->last_rpm;
 
     /* PID stuff */
     float error = motor->target_rpm - motor->last_rpm;
-    float proportional = Kp * error;
+    float proportional = KP * error;
 
     motor->integral_error += error / frequency_hz;
     if (motor->integral_error > MAX_INTEGRAL_ERROR) {
@@ -75,19 +80,21 @@ motors_control_update(int motor_index, int frequency_hz)
     } else if (motor->integral_error < -MAX_INTEGRAL_ERROR) {
         motor->integral_error = -MAX_INTEGRAL_ERROR;
     }
-    float integral = Ki * motor->integral_error;
+    float integral = KI * motor->integral_error;
 
-    float derivative = Kd * (error - motor->last_error) * frequency_hz;
+    float derivative = KD * (error - motor->last_error) * frequency_hz;
     motor->last_error = error;
 
     tb6612fng_channel_drive_t mode = TB6612FNG_STOP;
     float speed = 0.0f;
-    tb6612fng_channel_get_drive(motor->channel, &mode, &speed);
+    tb6612fng_channel_get_drive(motor->driver, &mode, &speed);
     if (mode == TB6612FNG_CCW) {
         speed = -speed;
     }
 
     speed = speed + proportional + integral + derivative;
+
+    telemetry.drive_power[motor_index] = speed;
 
     /* make sure values are sane */
     if (speed < 0) {
@@ -104,15 +111,15 @@ motors_control_update(int motor_index, int frequency_hz)
         speed = 1.0f;
     }
 
-    tb6612fng_channel_set_drive(motor->channel, mode, speed);
+    tb6612fng_channel_set_drive(motor->driver, mode, speed);
 }
 
 float
 motors_get_rpm(int motor_index)
 {
     if (motor_index < 0 || motor_index > 3) {
-        ESP_LOGE("invalid motor index %d. ignoring.", motor_index);
-        return;
+        //ESP_LOGE("invalid motor index %d. ignoring.", motor_index);
+        return 0;
     }
     return motors[motor_index].last_rpm;
 }

@@ -1,6 +1,7 @@
 import asyncio
 import struct
 from bleak import BleakClient, BleakScanner
+import os
 
 # UUIDs from ESP32S3 NimBLE code
 SERVICE_UUID = "1234"
@@ -41,8 +42,25 @@ async def main():
 
                 def telemetry_handler(sender, data):
                     try:
-                        x_pos, y_pos, speed, battery = struct.unpack_from("<fffB", data, 0)
-                        print(f"Telemetry: x_pos={x_pos:.2f}, y_pos={y_pos:.2f}, speed={speed:.2f}, battery={battery}%")
+                        unpacked = struct.unpack_from("<I4i4f4f", data, 0)
+                        print("-" * 30)
+                        print("Encoder Counts:", unpacked[1:5])
+                        print("RPMs:", unpacked[5:9])
+                        print("Drive Power:", unpacked[9:13])
+
+                        write_headers = not os.path.exists('data.csv')
+                        with open('data.csv', 'a') as file:
+                            if write_headers:
+                                headers = (
+                                    [f'packet_num'] +
+                                    [f'encoder_count_{i}' for i in range(4)] +
+                                    [f'rpm_{i}' for i in range(4)] +
+                                    [f'drive_power_{i}' for i in range(4)]
+                                )
+                                file.write(','.join(headers))
+                                file.write('\n')
+                            file.write(','.join(map(str, unpacked)))
+                            file.write('\n')
                     except struct.error as e:
                         print(f"Error unpacking telemetry data: {e}")
 

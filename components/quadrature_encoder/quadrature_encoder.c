@@ -45,7 +45,9 @@ quadrature_encoder_create(int channel_a_pin, int channel_b_pin, quadrature_encod
     encoder->channel_a_pin = channel_a_pin;
     encoder->channel_b_pin = channel_b_pin;
     encoder->count = 0;
-    encoder->previous_state = 0;
+    encoder->previous_state = (
+            gpio_get_level(encoder->channel_a_pin) << 1 | gpio_get_level(encoder->channel_b_pin)
+    );
 
     gpio_config_t io_config = {
         .pin_bit_mask = (1ULL << channel_a_pin) | (1ULL << channel_b_pin),
