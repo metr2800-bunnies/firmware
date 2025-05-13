@@ -9,10 +9,11 @@
 #define MAX_INTEGRAL_ERROR  50.0f
 #define DEADZONE_THRESHOLD  0.25f
 #define MAX_RPM             210.0f
+#define RPM_SMOOTHING_ALPHA 0.2f
 
-#define KP  0.001
-#define KI  0.00001
-#define KD  0.00005
+#define KP  0.001f
+#define KI  0.002f
+#define KD  0.0005f
 
 typedef struct {
     quadrature_encoder_handle_t encoder;
@@ -67,7 +68,11 @@ motors_control_update(int motor_index, int frequency_hz)
     int32_t delta = count - motor->last_tick_count;
     motor->last_tick_count = count;
 
-    motor->last_rpm = (delta * frequency_hz * 60) / ENCODER_RESOLUTION;
+    float raw_rpm = (delta * frequency_hz * 60) / ENCODER_RESOLUTION;
+    motor->last_rpm = (
+        motor->last_rpm * (1.0f - RPM_SMOOTHING_ALPHA) +
+        raw_rpm * RPM_SMOOTHING_ALPHA
+    );
 
     /* some telemetry */
     telemetry.encoder_counts[motor_index] = count;
@@ -75,6 +80,9 @@ motors_control_update(int motor_index, int frequency_hz)
 
     /* PID stuff */
     float error = motor->target_rpm - motor->last_rpm;
+    if (fabsf(error) < 3.0f) {
+        error = 0.0f;
+    }
     float proportional = KP * error;
 
     motor->integral_error += error / frequency_hz;
@@ -89,7 +97,7 @@ motors_control_update(int motor_index, int frequency_hz)
     float derivative = KD * (error - motor->last_error) * frequency_hz;
     motor->last_error = error;
 
-    float feedforward = motor->target_rpm / MAX_RPM;
+    float feedforward = motor->target_rpm * 0.5 / MAX_RPM;
     float speed = feedforward + proportional + integral + derivative;
 
     // clamp
