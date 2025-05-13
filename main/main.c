@@ -139,10 +139,10 @@ app_main(void)
                 ESP_LOGI(tag, "Setting target RPM");
                 ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, 0, 255, 0));
                 ESP_ERROR_CHECK(led_strip_refresh(led_strip));
-                motors_set_rpm(0, 30);
-                motors_set_rpm(1, 30);
-                motors_set_rpm(2, -30);
-                motors_set_rpm(3, -30);
+                motors_set_rpm(0, 100);
+                motors_set_rpm(1, 100);
+                motors_set_rpm(2, -100);
+                motors_set_rpm(3, -100);
                 state = 3;
                 break;
             case 3:

@@ -10,7 +10,8 @@ typedef struct {
     int32_t encoder_counts[4];
     float rpms[4];
     float drive_power[4];
-    float raw_imu[6];
+    //float raw_imu[6];
+    float ff, p, i, d;
 } telemetry_data_t;
 
 extern telemetry_data_t telemetry;
