@@ -1,6 +1,9 @@
 #include "quadrature_encoder.h"
 #include "esp_check.h"
 #include "esp_attr.h"
+#include "esp_timer.h"
+
+#define DEBOUNCE_THRESHOLD_US   100
 
 static const char *TAG = "QuadratureEncoder";
 
@@ -8,6 +11,7 @@ typedef struct {
     int channel_a_pin, channel_b_pin;
     volatile int32_t count;
     uint8_t previous_state;
+    int64_t last_isr_time_us;
 } quadrature_encoder_dev_t;
 
 esp_err_t
@@ -29,6 +33,13 @@ static const int8_t state_table[16] = {
 static void IRAM_ATTR quadrature_encoder_isr(void *arg)
 {
     quadrature_encoder_dev_t *encoder = (quadrature_encoder_dev_t *)arg;
+    int64_t now_us = esp_timer_get_time();
+
+    if (now_us - encoder->last_isr_time_us < DEBOUNCE_THRESHOLD_US) {
+        return;
+    }
+    encoder->last_isr_time_us = now_us;
+
     uint8_t current_state = (gpio_get_level(encoder->channel_a_pin) << 1 | gpio_get_level(encoder->channel_b_pin));
     int8_t delta = state_table[(encoder->previous_state << 2) | current_state];
     encoder->count += delta;
