@@ -42,22 +42,21 @@ async def main():
 
                 def telemetry_handler(sender, data):
                     try:
-                        unpacked = struct.unpack_from("<I4i4f4f4f", data, 0)
-                        print("-" * 30)
-                        print("Encoder Counts:", unpacked[1:5])
-                        print("RPMs:", unpacked[5:9])
-                        print("Drive Power:", unpacked[9:13])
-                        print("control terms:", unpacked[13:17])
+                        unpacked = struct.unpack_from("<I4i4f4f6f", data, 0)
+                        packet_num = unpacked[0]
+                        encoder = unpacked[1:5]
+                        rpm = unpacked[5:9]
+                        drive_power = unpacked[9:13]
+                        imu_raw = unpacked[13:19]
 
                         write_headers = not os.path.exists('data.csv')
                         with open('data.csv', 'a') as file:
                             if write_headers:
                                 headers = (
                                     ["packet_num"] +
-                                    [f'encoder_count_{i}' for i in range(4)] +
-                                    [f'rpm_{i}' for i in range(4)] +
-                                    [f'drive_power_{i}' for i in range(4)] +
-                                    ["ff", "p", "i", "d"]
+                                    [item for i in range(4)
+                                     for item in (f'encoder_count_{i}', f'rpm_{i}', f'drive_power{i}')] +
+                                    [f'imu_raw_{i}' for i in range(6)]
                                 )
                                 file.write(','.join(headers))
                                 file.write('\n')
