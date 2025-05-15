@@ -6,13 +6,13 @@
 
 #define TICKS_PER_REV       341.2f
 #define ENCODER_RESOLUTION  ((TICKS_PER_REV) * 4)
-#define MAX_INTEGRAL_ERROR  50.0f
-#define DEADZONE_THRESHOLD  0.25f
+#define MAX_INTEGRAL_ERROR  10.0f
+#define DEADZONE_THRESHOLD  0.20f
 #define MAX_RPM             210.0f
 #define RPM_SMOOTHING_ALPHA 0.2f
 
 #define KP  0.001f
-#define KI  0.002f
+#define KI  0.003f
 #define KD  0.0005f
 
 typedef struct {
