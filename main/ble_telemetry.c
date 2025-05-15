@@ -84,8 +84,7 @@ telemetry_task(void *param) {
 
     while (1) {
         if (conn_handle != BLE_HS_CONN_HANDLE_NONE && telemetry_subscribed) {
-            telemetry.packet_num = xTaskGetTickCount();
-            // telemetry.packet_num += 1;
+            telemetry.packet_num += 1;
             struct os_mbuf *om = ble_hs_mbuf_from_flat(&telemetry, sizeof(telemetry));
             if (om) {
                 int rc = ble_gattc_notify_custom(conn_handle, telemetry_char_handle, om);
