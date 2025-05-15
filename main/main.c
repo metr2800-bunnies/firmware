@@ -8,6 +8,7 @@
 #include "led_strip.h"
 #include "mpu6050.h"
 #include "motors.h"
+#include "servos.h"
 #include "movement.h"
 #include "ble_telemetry.h"
 
@@ -22,18 +23,11 @@
 #define LIM3_GPIO   GPIO_NUM_9
 #define LIM4_GPIO   GPIO_NUM_10
 
-/* SERVO GPIO */
-#define SERVO1_GPIO     GPIO_NUM_18
-#define SERVO2_GPIO     GPIO_NUM_8
-#define SERVO3_GPIO     GPIO_NUM_46
-
 /* PUSHBUTTON GPIO */
 #define BOOT_BUTTON_GPIO    GPIO_NUM_0
 
 /* LED GPIO */
 #define LED_GPIO            GPIO_NUM_38
-#define LED_STRIP_LENGTH    1
-#define LED_BRIGHTNESS      0.05    // neopixel LEDs are bright man
 
 #define TIMER_RESOLUTION_HZ     1000000
 #define TIMER_FREQ_HZ           10
@@ -64,8 +58,6 @@ enum {
     STOP,
 } state_t;
 
-static const char *tag = "TABLEBOT";
-
 static SemaphoreHandle_t control_loop_semaphore;
 static gptimer_handle_t gptimer = 0;
 static led_strip_handle_t led_strip;
@@ -75,7 +67,7 @@ configure_led(void)
 {
     led_strip_config_t strip_config = {
         .strip_gpio_num = LED_GPIO,
-        .max_leds = LED_STRIP_LENGTH,
+        .max_leds = 1,
         .led_model = LED_MODEL_WS2812,
         .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB,
         .flags.invert_out = false,
@@ -132,6 +124,7 @@ app_main(void)
     configure_led();
     timer_setup();
     motors_init();
+    servos_init();
     ble_telemetry_init();
 
     gpio_config_t io_conf = {
