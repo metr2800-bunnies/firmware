@@ -6,9 +6,9 @@
 
 #define LEDC_TIMER              LEDC_TIMER_2
 #define LEDC_MODE               LEDC_LOW_SPEED_MODE
-#define LEDC_FREQUENCY_HZ       2500 // note that motor driver has max switching frequency of 10kHz
-#define LEDC_DUTY_RES           LEDC_TIMER_10_BIT
-#define DUTY_RANGE              (1 << 10)
+#define LEDC_FREQUENCY_HZ       50
+#define LEDC_DUTY_RES           LEDC_TIMER_12_BIT
+#define DUTY_RANGE              (1 << 12)
 
 void
 servo_init(void)
@@ -39,7 +39,7 @@ servo_init(void)
             .channel = gpios[i],
             .timer_sel = LEDC_TIMER,
             .intr_type = LEDC_INTR_DISABLE,
-            .gpio_num = ,
+            .gpio_num = gpios[i],
             .duty = 0,
             .hpoint = 0,
         };
@@ -49,13 +49,21 @@ servo_init(void)
     }
 }
 
+static void
+set(int servo, float x)
+{
+    if (x > 1.0f || x < -1.0f) {
+        return;
+    }
+    float pulse_width = 0.075f + (x * 0.025); // map [-1,1] onto [0.05,0.10]
+    ledc_set_duty(LEDC_MODE, servo, (uint32_t)(pulse_width * DUTY_RANGE));
+    ledc_update_duty(LEDC_MODE, servo);
+}
+
 void
 servo_set(float a, float b, float c)
 {
-    ledc_set_duty(LEDC_MODE, SERVO1_GPIO, (uint32_t)(a * DUTY_RANGE));
-    ledc_update_duty(LEDC_MODE, SERVO1_GPIO);
-    ledc_set_duty(LEDC_MODE, SERVO2_GPIO, (uint32_t)(b * DUTY_RANGE));
-    ledc_update_duty(LEDC_MODE, SERVO2_GPIO);
-    ledc_set_duty(LEDC_MODE, SERVO3_GPIO, (uint32_t)(c * DUTY_RANGE));
-    ledc_update_duty(LEDC_MODE, SERVO3_GPIO);
+    set(SERVO1_GPIO, a);
+    set(SERVO2_GPIO, b);
+    set(SERVO3_GPIO, c);
 }
