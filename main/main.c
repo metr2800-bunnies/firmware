@@ -1,4 +1,3 @@
-#include "driver/i2c_master.h"
 #include "driver/gptimer.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
@@ -11,11 +10,6 @@
 #include "servos.h"
 #include "movement.h"
 #include "ble_telemetry.h"
-
-/* I2C GPIO */
-#define SDA_GPIO        GPIO_NUM_1
-#define SCL_GPIO        GPIO_NUM_4
-#define I2C_PORT_NUM    I2C_NUM_0
 
 /* LIMIT SWITCH GPIO */
 #define LIM1_GPIO   GPIO_NUM_45
@@ -32,7 +26,7 @@
 #define TIMER_RESOLUTION_HZ     1000000
 #define TIMER_FREQ_HZ           10
 
-enum {
+typedef enum {
     IDLE = 0,
     GO,
     GO_TO_BALLS,
@@ -124,7 +118,7 @@ app_main(void)
     configure_led();
     timer_setup();
     motors_init();
-    servos_init();
+    servo_init();
     ble_telemetry_init();
 
     gpio_config_t io_conf = {
@@ -141,6 +135,14 @@ app_main(void)
     movement_set(0.0f, 0.0f, 0.0f);
     servo_set(0.0f, 0.0f, 0.0f);
 
+    while (gpio_get_level(BOOT_BUTTON_GPIO) != 0);
+    while (gpio_get_level(BOOT_BUTTON_GPIO) != 1);
+    servo_set(0.0f, 0.0f, 1.0f);
+
+    while (gpio_get_level(BOOT_BUTTON_GPIO) != 0);
+    while (gpio_get_level(BOOT_BUTTON_GPIO) != 1);
+    servo_set(0.0f, 0.0f, 0.0f);
+
     state_t state = IDLE;
     uint32_t ticks = 0;
     while (1) {
@@ -153,13 +155,13 @@ app_main(void)
             case GO:
                 ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, 0, 255, 0));
                 ESP_ERROR_CHECK(led_strip_refresh(led_strip));
-                state = GO_TOWARD_BALLS;
+                state = GO_TO_BALLS;
                 break;
             case GO_TO_BALLS:
                 movement_set(50.0f, 0.0f, 0.0f);
                 servo_set(0.0f, 0.0f, 0.0f);
                 ticks = 0;
-                state = WAIT_TO_ARRIVE_AT_BALLS;
+                state = WAIT_TO_GET_TO_BALLS;
                 break;
             case WAIT_TO_GET_TO_BALLS:
                 if (ticks >= 10 * TIMER_FREQ_HZ) {
@@ -182,6 +184,7 @@ app_main(void)
                 movement_set(0.0f, 0.0f, 0.0f);
                 servo_set(0.0f, 0.0f, 1.0f);
                 ticks = 0;
+                state = WAIT_FOR_LOWER;
                 break;
             case WAIT_FOR_LOWER:
                 // todo: replace with limit switch
@@ -193,6 +196,7 @@ app_main(void)
                 movement_set(0.0f, 20.0f, 0.0f);
                 servo_set(0.0f, 0.0f, 0.0f);
                 ticks = 0;
+                state = WAIT_FOR_SCOOP;
                 break;
             case WAIT_FOR_SCOOP:
                 if (ticks >= 1 * TIMER_FREQ_HZ) {
@@ -218,48 +222,52 @@ app_main(void)
             case WAIT_FOR_RAISE:
                 // todo: replace with limit switch
                 if (ticks >= 2 * TIMER_FREQ_HZ) {
-                    state = SCOOP_BALLS;
+                    state = GO_OVER_SEESAW;
                 }
                 break;
             case GO_OVER_SEESAW:
                 movement_set(0.0f, 100.0f, 0.0f);
                 servo_set(0.0f, 0.0f, 0.0f);
                 ticks = 0;
+                state = WAIT_TO_GET_OVER_SEESAW;
                 break;
             case WAIT_TO_GET_OVER_SEESAW:
                 if (ticks >= 20 * TIMER_FREQ_HZ) {
-                    state = SCOOP_BALLS;
+                    state = GO_TO_DEPOSIT;
                 }
                 break;
             case GO_TO_DEPOSIT:
                 movement_set(-50.0f, 0.0f, 0.0f);
                 servo_set(0.0f, 0.0f, 0.0f);
                 ticks = 0;
+                state = WAIT_TO_GET_TO_DEPOSIT;
                 break;
             case WAIT_TO_GET_TO_DEPOSIT:
                 if (ticks >= 2 * TIMER_FREQ_HZ) {
-                    state = SCOOP_BALLS;
+                    state = EJECT_BALLS;
                 }
                 break;
             case EJECT_BALLS:
                 movement_set(0.0f, 0.0f, 0.0f);
                 servo_set(-1.0f, -1.0f, 0.0f);
                 ticks = 0;
+                state = WAIT_FOR_EJECT;
                 break;
             case WAIT_FOR_EJECT:
                 // todo: replace with limit switch
                 if (ticks >= 2 * TIMER_FREQ_HZ) {
-                    state = SCOOP_BALLS;
+                    state = PARK;
                 }
                 break;
             case PARK:
                 movement_set(100.0f, 0.0f, 0.0f);
                 servo_set(0.0f, 0.0f, 0.0f);
                 ticks = 0;
+                state = WAIT_FOR_PARK;
                 break;
             case WAIT_FOR_PARK:
                 if (ticks >= 2 * TIMER_FREQ_HZ) {
-                    state = SCOOP_BALLS;
+                    state = STOP;
                 }
                 break;
             case STOP:

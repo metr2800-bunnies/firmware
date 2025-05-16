@@ -1,4 +1,6 @@
 #include "servos.h"
+#include "driver/gpio.h"
+#include "driver/ledc.h"
 
 #define SERVO1_GPIO     GPIO_NUM_18
 #define SERVO2_GPIO     GPIO_NUM_8
@@ -23,7 +25,7 @@ servo_init(void)
     ledc_timer_config(&timer_config);
 
     gpio_config_t io_config = {
-        .pin_bit_mask = (1ULL << in1_pin) | (1ULL << in2_pin),
+        .pin_bit_mask = (1ULL << SERVO1_GPIO) | (1ULL << SERVO2_GPIO) | (1ULL << SERVO3_GPIO),
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,

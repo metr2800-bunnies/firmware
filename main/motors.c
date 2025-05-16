@@ -1,14 +1,17 @@
+#include "motors.h"
 #include "ble_telemetry.h"
 #include "math.h"
 #include "quadrature_encoder.h"
 #include "tb6612fng.h"
+#include "pid.h"
 
-#define TICKS_PER_REV       341.2f
+#define TICKS_PER_REV       (34*11)
 #define ENCODER_RESOLUTION  ((TICKS_PER_REV) * 4)
 #define MAX_ERROR_SUM       10.0f
 #define MAX_RPM             210.0f
 #define DEADZONE_THRESHOLD  0.20f
 #define RPM_SMOOTHING_ALPHA 0.2f
+#define ERROR_DEADZONE      3.0f
 
 #define FF  (0.5 * (MAX_RPM))
 #define KP  0.001f
@@ -18,7 +21,7 @@
 typedef struct {
     quadrature_encoder_handle_t encoder;
     tb6612fng_channel_handle_t driver;
-    float target_rpm;
+    float target_rpm, last_rpm;
     int last_tick_count;
     pid_t pid;
 } motor_t;
@@ -41,7 +44,7 @@ reset_parameters(void)
         motors[i].pid.kd = KD;
         motors[i].pid.error_sum = 0.0f;
         motors[i].pid.last_error = 0.0f;
-        motors[i].pid.error_deadzone = ERROR_SUM;
+        motors[i].pid.error_deadzone = ERROR_DEADZONE;
         motors[i].pid.max_error_sum = MAX_ERROR_SUM;
     }
 }
@@ -62,6 +65,8 @@ motors_init(void)
     ESP_ERROR_CHECK(tb6612fng_channel_create(MOTOR2_IN1_GPIO, MOTOR2_IN2_GPIO, MOTOR2_PWM_GPIO, &motors[1].driver));
     ESP_ERROR_CHECK(tb6612fng_channel_create(MOTOR3_IN1_GPIO, MOTOR3_IN2_GPIO, MOTOR3_PWM_GPIO, &motors[2].driver));
     ESP_ERROR_CHECK(tb6612fng_channel_create(MOTOR4_IN1_GPIO, MOTOR4_IN2_GPIO, MOTOR4_PWM_GPIO, &motors[3].driver));
+
+    reset_parameters();
 }
 
 void
@@ -94,7 +99,7 @@ motor_update(int motor_index, int frequency_hz)
 
     /* some telemetry */
     telemetry.encoder_counts[motor_index] = count;
-    telemetry.rpms[motor_index] = rpm;
+    telemetry.rpms[motor_index] = motor->last_rpm;
 
     float speed = pid_compute(&motor->pid, frequency_hz, motor->target_rpm, motor->last_rpm);
 

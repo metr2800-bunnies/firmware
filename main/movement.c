@@ -1,8 +1,9 @@
-#include "math.h"
 #include "motors.h"
 #include "movement.h"
 #include "pid.h"
+#include "imu.h"
 
+#define PI                      3.14159f
 #define RAD_PER_SECOND_TO_RPM   (30 / PI)
 
 typedef struct {
@@ -26,10 +27,10 @@ calculate_rpms(float vx, float vy, float omega, float out_rpms[4])
 {
     float k = 4.0f / WHEEL_RADIUS_MM * RAD_PER_SECOND_TO_RPM;
     float rot_factor = (LENGTH_MM + WIDTH_MM) / 4.0f;
-    out_rpm[0] = (vx - vy - omega * rot_factor) * k; // front left
-    out_rpm[1] = (vx + vy - omega * rot_factor) * k; // rear left
-    out_rpm[2] = (vx + vy + omega * rot_factor) * k; // front right
-    out_rpm[3] = (vx - vy + omega * rot_factor) * k; // rear right
+    out_rpms[0] = (vx + vy + omega * rot_factor) * k; // front right
+    out_rpms[1] = (vx - vy + omega * rot_factor) * k; // rear right
+    out_rpms[2] = (vx - vy - omega * rot_factor) * k; // front left
+    out_rpms[3] = (vx + vy - omega * rot_factor) * k; // rear left
 }
 
 void
