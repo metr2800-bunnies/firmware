@@ -3,6 +3,7 @@
 #include "pid.h"
 #include "imu.h"
 #include "math.h"
+#include "ble_telemetry.h"
 
 #define PI                      3.14159f
 #define RAD_PER_SECOND_TO_RPM   (30 / PI)
@@ -59,7 +60,10 @@ movement_pid_update(int frequency_hz)
 
     float rpms[4] = {};
     calculate_rpms(target.vx, target.vy, omega_correction, rpms);
-//    calculate_rpms(target.vx, target.vy, 0.0f, rpms);
+
+    for (int i = 0; i < 4; ++i) {
+        telemetry.target_rpms[i] = rpms[i];
+    }
 
     motors_set_rpms(rpms);
     motors_pid_update(frequency_hz);

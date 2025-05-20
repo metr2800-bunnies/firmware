@@ -7,14 +7,14 @@
 
 #define TICKS_PER_REV       (34*11)
 #define ENCODER_RESOLUTION  ((TICKS_PER_REV) * 4)
-#define MAX_ERROR_SUM       10.0f
+#define MAX_ERROR_SUM       35.0f
 #define MAX_RPM             210.0f
 #define DEADZONE_THRESHOLD  0.20f
 #define RPM_SMOOTHING_ALPHA 0.2f
 #define ERROR_DEADZONE      3.0f
 
-#define FF  (0.5 / (MAX_RPM))
-#define KP  0.001f
+#define FF  (0.75 / (MAX_RPM))
+#define KP  0.0045f
 #define KI  0.003f
 #define KD  0.0005f
 
@@ -101,7 +101,12 @@ motor_update(int motor_index, int frequency_hz)
     telemetry.encoder_counts[motor_index] = count;
     telemetry.rpms[motor_index] = motor->last_rpm;
 
-    float speed = pid_compute(&motor->pid, frequency_hz, motor->target_rpm, motor->last_rpm);
+    float speed = 0.0f;
+    if (fabsf(motor->target_rpm) < 5.0f) {
+        speed = 0.0f;
+    } else {
+        speed = pid_compute(&motor->pid, frequency_hz, motor->target_rpm, motor->last_rpm);
+    }
 
     // clamp
     if (speed > 1.0f) {

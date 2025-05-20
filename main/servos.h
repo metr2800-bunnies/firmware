@@ -5,4 +5,5 @@
 #define SERVO3_GPIO     GPIO_NUM_46
 
 void servo_init(void);
-void servo_set(float a, float b, float c);
+void servo_pinion(float value);
+void servo_winch(float value);

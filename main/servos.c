@@ -63,9 +63,13 @@ set(int servo, float x)
 }
 
 void
-servo_set(float a, float b, float c)
+servo_pinion(float value)
 {
-    set(5, a);
-    set(6, b);
-    set(7, c);
+    set(5, value); set(6, value);
+}
+
+void
+servo_winch(float value)
+{
+    set(7, value);
 }
