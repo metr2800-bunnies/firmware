@@ -11,6 +11,7 @@ typedef struct {
     float rpms[4];
     float drive_power[4];
     float raw_imu[6];
+    float yaw;
 } telemetry_data_t;
 
 extern telemetry_data_t telemetry;

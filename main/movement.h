@@ -5,5 +5,5 @@
 #define WHEEL_RADIUS_MM     40
 
 
-void movement_set(float vx, float vy, float yaw);
+void movement_set(float vx, float vy);
 void movement_pid_update(int frequency_hz);

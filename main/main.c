@@ -5,11 +5,11 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "led_strip.h"
-#include "mpu6050.h"
 #include "motors.h"
 #include "servos.h"
 #include "movement.h"
 #include "ble_telemetry.h"
+#include "imu.h"
 
 /* LIMIT SWITCH GPIO */
 #define LIM1_GPIO   GPIO_NUM_45
@@ -117,9 +117,14 @@ app_main(void)
     control_loop_semaphore = xSemaphoreCreateBinary();
     configure_led();
     timer_setup();
+
+    ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, 255, 255, 0));
+    ESP_ERROR_CHECK(led_strip_refresh(led_strip));
+
     motors_init();
     servo_init();
     ble_telemetry_init();
+    imu_init();
 
     gpio_config_t io_conf = {
         .pin_bit_mask = 1ULL << BOOT_BUTTON_GPIO,
@@ -132,33 +137,29 @@ app_main(void)
 
     ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, 255, 0, 0));
     ESP_ERROR_CHECK(led_strip_refresh(led_strip));
-    movement_set(0.0f, 0.0f, 0.0f);
-    servo_set(0.0f, 0.0f, 0.0f);
-
-    while (gpio_get_level(BOOT_BUTTON_GPIO) != 0);
-    while (gpio_get_level(BOOT_BUTTON_GPIO) != 1);
-    servo_set(0.0f, 0.0f, 1.0f);
-
-    while (gpio_get_level(BOOT_BUTTON_GPIO) != 0);
-    while (gpio_get_level(BOOT_BUTTON_GPIO) != 1);
+    movement_set(0.0f, 0.0f);
     servo_set(0.0f, 0.0f, 0.0f);
 
     state_t state = IDLE;
+
     uint32_t ticks = 0;
     while (1) {
         switch (state) {
             case IDLE:
                 if (!gpio_get_level(BOOT_BUTTON_GPIO)) {
-                    state = GO;
+                 state = 1;
                 }
                 break;
             case GO:
                 ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, 0, 255, 0));
                 ESP_ERROR_CHECK(led_strip_refresh(led_strip));
+                servo_set(0.0f, 0.0f, 0.0f);
+                movement_set(0.0f, 60.0f);
+                break;
                 state = GO_TO_BALLS;
                 break;
             case GO_TO_BALLS:
-                movement_set(50.0f, 0.0f, 0.0f);
+                movement_set(50.0f, 0.0f);
                 servo_set(0.0f, 0.0f, 0.0f);
                 ticks = 0;
                 state = WAIT_TO_GET_TO_BALLS;
@@ -169,7 +170,7 @@ app_main(void)
                 }
                 break;
             case OPEN_BOX:
-                movement_set(0.0f, 0.0f, 0.0f);
+                movement_set(0.0f, 0.0f);
                 servo_set(1.0f, 1.0f, 0.0f);
                 ticks = 0;
                 state = WAIT_FOR_OPEN;
@@ -181,7 +182,7 @@ app_main(void)
                 }
                 break;
             case LOWER_BOX:
-                movement_set(0.0f, 0.0f, 0.0f);
+                movement_set(0.0f, 0.0f);
                 servo_set(0.0f, 0.0f, 1.0f);
                 ticks = 0;
                 state = WAIT_FOR_LOWER;
@@ -193,7 +194,7 @@ app_main(void)
                 }
                 break;
             case SCOOP_BALLS:
-                movement_set(0.0f, 20.0f, 0.0f);
+                movement_set(0.0f, 20.0f);
                 servo_set(0.0f, 0.0f, 0.0f);
                 ticks = 0;
                 state = WAIT_FOR_SCOOP;
@@ -204,7 +205,7 @@ app_main(void)
                 }
                 break;
             case RETRACT_BOX:
-                movement_set(0.0f, 0.0f, 0.0f);
+                movement_set(0.0f, 0.0f);
                 servo_set(-1.0f, -1.0f, 0.0f);
                 ticks = 0;
                 break;
@@ -215,7 +216,7 @@ app_main(void)
                 }
                 break;
             case RAISE_BOX:
-                movement_set(0.0f, 0.0f, 0.0f);
+                movement_set(0.0f, 0.0f);
                 servo_set(0.0f, 0.0f, -1.0f);
                 ticks = 0;
                 break;
@@ -226,7 +227,7 @@ app_main(void)
                 }
                 break;
             case GO_OVER_SEESAW:
-                movement_set(0.0f, 100.0f, 0.0f);
+                movement_set(0.0f, 100.0f);
                 servo_set(0.0f, 0.0f, 0.0f);
                 ticks = 0;
                 state = WAIT_TO_GET_OVER_SEESAW;
@@ -237,7 +238,7 @@ app_main(void)
                 }
                 break;
             case GO_TO_DEPOSIT:
-                movement_set(-50.0f, 0.0f, 0.0f);
+                movement_set(-50.0f, 0.0f);
                 servo_set(0.0f, 0.0f, 0.0f);
                 ticks = 0;
                 state = WAIT_TO_GET_TO_DEPOSIT;
@@ -248,7 +249,7 @@ app_main(void)
                 }
                 break;
             case EJECT_BALLS:
-                movement_set(0.0f, 0.0f, 0.0f);
+                movement_set(0.0f, 0.0f);
                 servo_set(-1.0f, -1.0f, 0.0f);
                 ticks = 0;
                 state = WAIT_FOR_EJECT;
@@ -260,7 +261,7 @@ app_main(void)
                 }
                 break;
             case PARK:
-                movement_set(100.0f, 0.0f, 0.0f);
+                movement_set(100.0f, 0.0f);
                 servo_set(0.0f, 0.0f, 0.0f);
                 ticks = 0;
                 state = WAIT_FOR_PARK;
@@ -273,7 +274,7 @@ app_main(void)
             case STOP:
                 ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, 255, 0, 0));
                 ESP_ERROR_CHECK(led_strip_refresh(led_strip));
-                movement_set(0.0f, 0.0f, 0.0f);
+                movement_set(0.0f, 0.0f);
                 servo_set(0.0f, 0.0f, 0.0f);
                 return;
         }

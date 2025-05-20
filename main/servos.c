@@ -38,7 +38,7 @@ servo_init(void)
     for (int i = 0; i < 3; ++i) {
         ledc_channel_config_t channel_config = {
             .speed_mode = LEDC_MODE,
-            .channel = gpios[i],
+            .channel = 5 + i,
             .timer_sel = LEDC_TIMER,
             .intr_type = LEDC_INTR_DISABLE,
             .gpio_num = gpios[i],
@@ -46,8 +46,8 @@ servo_init(void)
             .hpoint = 0,
         };
         ledc_channel_config(&channel_config);
-        ledc_set_duty(LEDC_MODE, gpios[i], DUTY_RANGE / 2);
-        ledc_update_duty(LEDC_MODE, gpios[i]);
+        ledc_set_duty(LEDC_MODE, 5 + i, DUTY_RANGE / 2);
+        ledc_update_duty(LEDC_MODE, 5 + i);
     }
 }
 
@@ -65,7 +65,7 @@ set(int servo, float x)
 void
 servo_set(float a, float b, float c)
 {
-    set(SERVO1_GPIO, a);
-    set(SERVO2_GPIO, b);
-    set(SERVO3_GPIO, c);
+    set(5, a);
+    set(6, b);
+    set(7, c);
 }

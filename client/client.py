@@ -42,12 +42,13 @@ async def main():
 
                 def telemetry_handler(sender, data):
                     try:
-                        unpacked = struct.unpack_from("<I4i4f4f6f", data, 0)
+                        unpacked = struct.unpack_from("<I4i4f4f6ff", data, 0)
                         packet_num = unpacked[0]
                         encoder = unpacked[1:5]
                         rpm = unpacked[5:9]
                         drive_power = unpacked[9:13]
                         imu_raw = unpacked[13:19]
+                        yaw = unpacked[19]
 
                         write_headers = not os.path.exists('data.csv')
                         with open('data.csv', 'a') as file:
@@ -56,11 +57,15 @@ async def main():
                                     ["packet_num"] +
                                     [item for i in range(4)
                                      for item in (f'encoder_count_{i}', f'rpm_{i}', f'drive_power{i}')] +
-                                    [f'imu_raw_{i}' for i in range(6)]
+                                    [f'imu_raw_{i}' for i in range(6)] +
+                                    ["yaw"]
                                 )
                                 file.write(','.join(headers))
                                 file.write('\n')
-                            file.write(','.join(map(str, unpacked)))
+                            motors = [item for i in range(4)
+                                      for item in (encoder[i], rpm[i], drive_power[i])]
+                            reordered = [packet_num] + motors + list(imu_raw) + [yaw]
+                            file.write(','.join(map(str, reordered)))
                             file.write('\n')
                     except struct.error as e:
                         print(f"Error unpacking telemetry data: {e}")

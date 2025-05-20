@@ -7,6 +7,7 @@
 #include "driver/gpio.h"
 #include "mpu6050.h"
 #include "esp_log.h"
+#include "ble_telemetry.h"
 
 #define SDA_GPIO        GPIO_NUM_1
 #define SCL_GPIO        GPIO_NUM_4
@@ -27,7 +28,7 @@ typedef struct {
 static mpu6050_bias_t sensor_bias = {0};
 
 void mpu6050_calibrate(void) {
-    const int samples = 1000; // 1000 samples at 100Hz ~ 10 seconds
+    const int samples = 500;
     float accel_sum[3] = {0};
     float gyro_sum[3] = {0};
 
@@ -148,11 +149,21 @@ update_yaw(int update_frequency_hz)
 {
     mpu6050_gyro_value_t g;
     ESP_ERROR_CHECK(mpu6050_get_gyro(mpu6050, &g));
+    mpu6050_acce_value_t a;
+    ESP_ERROR_CHECK(mpu6050_get_acce(mpu6050, &a));
+
+    telemetry.raw_imu[0] = a.acce_x;
+    telemetry.raw_imu[1] = a.acce_y;
+    telemetry.raw_imu[2] = a.acce_z;
+    telemetry.raw_imu[3] = g.gyro_x;
+    telemetry.raw_imu[4] = g.gyro_y;
+    telemetry.raw_imu[5] = g.gyro_z;
 
     float gyro_z = g.gyro_z - sensor_bias.gyro_z;
 
     // can't do yaw sensor fusion without a magnetometer. this will drift!!!
     yaw += gyro_z / update_frequency_hz;
+    telemetry.yaw = yaw;
 }
 
 static void
@@ -170,6 +181,7 @@ imu_init(void)
     imu_semaphore = xSemaphoreCreateBinary();
     i2c_setup();
     mpu6050_setup();
+    mpu6050_wake_up(mpu6050);
     mpu6050_calibrate();
     xTaskCreate(imu_task, "imu_task", 2048, NULL, 5, NULL);
     timer_setup();

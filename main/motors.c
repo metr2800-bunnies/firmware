@@ -13,7 +13,7 @@
 #define RPM_SMOOTHING_ALPHA 0.2f
 #define ERROR_DEADZONE      3.0f
 
-#define FF  (0.5 * (MAX_RPM))
+#define FF  (0.5 / (MAX_RPM))
 #define KP  0.001f
 #define KI  0.003f
 #define KD  0.0005f
