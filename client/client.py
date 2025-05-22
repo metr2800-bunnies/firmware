@@ -53,20 +53,21 @@ async def main():
 
                         write_headers = not os.path.exists('data.csv')
                         with open('data.csv', 'a') as file:
-                            if write_headers:
-                                headers = (
-                                    ["packet_num"] +
-                                    [item for i in range(4)
-                                     for item in (f'encoder_count_{i}', f'rpm_{i}', f'drive_power{i}')] +
-                                    [f'imu_raw_{i}' for i in range(6)] +
-                                    ["yaw"] +
-                                    [f'target_rpm_{i}' for i in range(4)]
-                                )
-                                file.write(','.join(headers))
-                                file.write('\n')
-                            motors = [item for i in range(4)
-                                      for item in (encoder[i], rpm[i], drive_power[i])]
-                            reordered = [packet_num] + motors + list(imu_raw) + [yaw] + list(target_rpms)
+                            #if write_headers:
+                            #    headers = (
+                            #        ["packet_num"] +
+                            #        [item for i in range(4)
+                            #         for item in (f'encoder_count_{i}', f'rpm_{i}', f'drive_power{i}')] +
+                            #        [f'imu_raw_{i}' for i in range(6)] +
+                            #        ["yaw"] +
+                            #        [f'target_rpm_{i}' for i in range(4)]
+                            #    )
+                            #    file.write(','.join(headers))
+                            #    file.write('\n')
+                            #motors = [item for i in range(4)
+                            #          for item in (encoder[i], rpm[i], drive_power[i])]
+                            #reordered = [packet_num] + motors + list(imu_raw) + [yaw] + list(target_rpms)
+                            reordered = [packet_num] + list(rpm) + list(target_rpms)
                             file.write(','.join(map(str, reordered)))
                             file.write('\n')
                     except struct.error as e:

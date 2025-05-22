@@ -41,6 +41,8 @@ typedef enum {
     WAIT_FOR_RETRACT,
     RAISE_BOX,
     WAIT_FOR_RAISE,
+    GET_ON_RAMP,
+    WAIT_TO_GET_ON_RAMP,
     GO_OVER_SEESAW,
     WAIT_TO_GET_OVER_SEESAW,
     GO_TO_DEPOSIT,
@@ -132,7 +134,7 @@ app_main(void)
 
     ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, 0, 0, 255));
     ESP_ERROR_CHECK(led_strip_refresh(led_strip));
-//    imu_init();
+    imu_init();
 
     gpio_config_t io_conf = {
         .pin_bit_mask = 1ULL << BOOT_BUTTON_GPIO,
@@ -152,7 +154,7 @@ app_main(void)
     };
     gpio_config(&io_conf_2);
 
-    servo_winch(0.5f);
+    servo_winch(0.7f);
     while (gpio_get_level(LIM3_GPIO) != 1) {
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -167,7 +169,7 @@ app_main(void)
     while (1) {
         if (keep_winch_at_top) {
             if (gpio_get_level(LIM3_GPIO) != 1) {
-                servo_winch(0.3f);
+                servo_winch(0.5f);
             } else {
                 servo_winch(0.0f);
             }
@@ -186,24 +188,26 @@ app_main(void)
                 state = GO_TO_BALLS;
                 break;
             case GO_TO_BALLS:
-                movement_set(0.0f, 100.0f);
+                movement_set(0.0f, 200.0f);
+                break;
                 ticks = 0;
                 state = WAIT_TO_GET_TO_BALLS;
                 break;
             case WAIT_TO_GET_TO_BALLS:
-                if (ticks >= 5 * TIMER_FREQ_HZ) {
-                    state = OPEN_BOX;
+                if (ticks >= 50) {
+                    //state = OPEN_BOX;
+                    state = STOP;
                 }
                 break;
             case OPEN_BOX:
                 movement_set(0.0f, 0.0f);
-                servo_pinion(1.0f);
+                servo_pinion(-0.7f);
                 ticks = 0;
                 state = WAIT_FOR_OPEN;
                 break;
             case WAIT_FOR_OPEN:
                 // todo: replace with limit switch
-                if (ticks >= 2 * TIMER_FREQ_HZ) {
+                if (ticks >= 30) {
                     state = LOWER_BOX;
                 }
                 break;
@@ -211,58 +215,68 @@ app_main(void)
                 movement_set(0.0f, 0.0f);
                 servo_pinion(0.0f);
                 keep_winch_at_top = 0;
-                servo_winch(-0.3f);
+                servo_winch(0.0f);
                 state = WAIT_FOR_LOWER;
                 break;
             case WAIT_FOR_LOWER:
-                if (gpio_get_level(LIM4_GPIO) == 1) {
+                if (gpio_get_level(LIM4_GPIO) == 0) {
                     state = SCOOP_BALLS;
                 }
                 break;
             case SCOOP_BALLS:
-                movement_set(60.0f, 0.0f);
-                servo_winch(0.0f);
+                movement_set(100.0f, 0.0f);
                 ticks = 0;
                 state = WAIT_FOR_SCOOP;
                 break;
             case WAIT_FOR_SCOOP:
-                if (ticks >= 1 * TIMER_FREQ_HZ) {
+                if (ticks >= 15) {
                     state = RETRACT_BOX;
                 }
                 break;
             case RETRACT_BOX:
                 movement_set(0.0f, 0.0f);
-                servo_pinion(-1.0f);
+                servo_pinion(0.7f);
                 ticks = 0;
                 state = WAIT_FOR_RETRACT;
                 break;
             case WAIT_FOR_RETRACT:
                 // todo: replace with limit switch
-                if (ticks >= 2 * TIMER_FREQ_HZ) {
+                if (ticks >= 30) {
                     state = RAISE_BOX;
                 }
                 break;
             case RAISE_BOX:
                 movement_set(0.0f, 0.0f);
+                servo_pinion(0.0f);
                 servo_winch(0.5f);
                 state = WAIT_FOR_RAISE;
                 break;
             case WAIT_FOR_RAISE:
                 if (gpio_get_level(LIM3_GPIO) == 1) {
+                    state = GET_ON_RAMP;
+                }
+                break;
+            case GET_ON_RAMP:
+                keep_winch_at_top = 1;
+                movement_set(400.0f, 0.0f);
+                servo_pinion(0.0f);
+                servo_winch(0.0f);
+                ticks = 0;
+                state = WAIT_TO_GET_ON_RAMP;
+                break;
+            case WAIT_TO_GET_ON_RAMP:
+                if (ticks >= 1 * TIMER_FREQ_HZ) {
                     state = GO_OVER_SEESAW;
                 }
                 break;
             case GO_OVER_SEESAW:
-                keep_winch_at_top = 1;
-                movement_set(100.0f, 0.0f);
-                servo_pinion(0.0f);
-                servo_winch(0.0f);
+                movement_set(200.0f, 0.0f);
                 ticks = 0;
                 state = WAIT_TO_GET_OVER_SEESAW;
                 break;
             case WAIT_TO_GET_OVER_SEESAW:
-                if (ticks >= 10 * TIMER_FREQ_HZ) {
-                    state = GO_TO_DEPOSIT;
+                if (ticks >= 8 * TIMER_FREQ_HZ) {
+                    state = GO_OVER_SEESAW;
                 }
                 break;
             case GO_TO_DEPOSIT:
@@ -279,19 +293,19 @@ app_main(void)
                 break;
             case EJECT_BALLS:
                 movement_set(0.0f, 0.0f);
-                servo_pinion(-1.0f);
+                servo_pinion(1.0f);
                 ticks = 0;
                 state = WAIT_FOR_EJECT;
                 break;
             case WAIT_FOR_EJECT:
                 // todo: replace with limit switch
-                if (ticks >= 2 * TIMER_FREQ_HZ) {
+                if (ticks >= 45) {
                     state = PARK;
                 }
                 break;
             case PARK:
-                movement_set(0.0f, 100.0f);
-                servo_pinion(0.0f);
+                //movement_set(0.0f, 100.0f);
+                servo_pinion(-1.0f);
                 ticks = 0;
                 state = WAIT_FOR_PARK;
                 break;

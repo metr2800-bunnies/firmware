@@ -7,16 +7,16 @@
 
 #define TICKS_PER_REV       (34*11)
 #define ENCODER_RESOLUTION  ((TICKS_PER_REV) * 4)
-#define MAX_ERROR_SUM       35.0f
+#define MAX_ERROR_SUM       50.0f
 #define MAX_RPM             210.0f
 #define DEADZONE_THRESHOLD  0.20f
 #define RPM_SMOOTHING_ALPHA 0.2f
 #define ERROR_DEADZONE      3.0f
 
-#define FF  (0.75 / (MAX_RPM))
-#define KP  0.0045f
-#define KI  0.003f
-#define KD  0.0005f
+#define FF  (0.85 / (MAX_RPM))
+#define KP  0.0100f
+#define KI  0.0030f
+#define KD  0.0025f
 
 typedef struct {
     quadrature_encoder_handle_t encoder;

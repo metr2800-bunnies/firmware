@@ -28,7 +28,7 @@ typedef struct {
 static mpu6050_bias_t sensor_bias = {0};
 
 void mpu6050_calibrate(void) {
-    const int samples = 50;
+    const int samples = 300;
     float accel_sum[3] = {0};
     float gyro_sum[3] = {0};
 
@@ -141,7 +141,7 @@ static float yaw = 0.0f;
 float
 imu_get_yaw(void)
 {
-    return 0.0f;//yaw;
+    return yaw;
 }
 
 static void
