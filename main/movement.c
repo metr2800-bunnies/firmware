@@ -36,6 +36,8 @@ calculate_rpms(float vx, float vy, float omega, float out_rpms[4])
 
     if (fabsf(vy) > 0.1f) {
         out_rpms[1] *= 1.0f + (2.0f * out_rpms[1] / MAX_RPM) * (out_rpms[1] > 0 ? 1.0f : -1.0f);
+    } else {
+        out_rpms[0] *= 1.0f + (2.0f * out_rpms[0] / MAX_RPM) * (out_rpms[0] > 0 ? 1.0f : -1.0f);
     }
 }
 

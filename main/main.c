@@ -134,7 +134,6 @@ app_main(void)
 
     ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, 0, 0, 255));
     ESP_ERROR_CHECK(led_strip_refresh(led_strip));
-    imu_init();
 
     gpio_config_t io_conf = {
         .pin_bit_mask = 1ULL << BOOT_BUTTON_GPIO,
@@ -178,7 +177,7 @@ app_main(void)
         switch (state) {
             case IDLE:
                 if (!gpio_get_level(BOOT_BUTTON_GPIO)) {
-                 state = GO;
+                    state = GO;
                 }
                 break;
             case GO:
@@ -189,14 +188,12 @@ app_main(void)
                 break;
             case GO_TO_BALLS:
                 movement_set(0.0f, 200.0f);
-                break;
                 ticks = 0;
                 state = WAIT_TO_GET_TO_BALLS;
                 break;
             case WAIT_TO_GET_TO_BALLS:
-                if (ticks >= 50) {
-                    //state = OPEN_BOX;
-                    state = STOP;
+                if (ticks >= 12) {
+                    state = OPEN_BOX;
                 }
                 break;
             case OPEN_BOX:
@@ -215,11 +212,11 @@ app_main(void)
                 movement_set(0.0f, 0.0f);
                 servo_pinion(0.0f);
                 keep_winch_at_top = 0;
-                servo_winch(0.0f);
+                servo_winch(-0.2f);
                 state = WAIT_FOR_LOWER;
                 break;
             case WAIT_FOR_LOWER:
-                if (gpio_get_level(LIM4_GPIO) == 0) {
+                if (gpio_get_level(LIM1_GPIO) == 1) {
                     state = SCOOP_BALLS;
                 }
                 break;
@@ -265,7 +262,7 @@ app_main(void)
                 state = WAIT_TO_GET_ON_RAMP;
                 break;
             case WAIT_TO_GET_ON_RAMP:
-                if (ticks >= 1 * TIMER_FREQ_HZ) {
+                if (ticks >= 15) {
                     state = GO_OVER_SEESAW;
                 }
                 break;
@@ -275,7 +272,7 @@ app_main(void)
                 state = WAIT_TO_GET_OVER_SEESAW;
                 break;
             case WAIT_TO_GET_OVER_SEESAW:
-                if (ticks >= 8 * TIMER_FREQ_HZ) {
+                if (ticks >= 80) {
                     state = GO_OVER_SEESAW;
                 }
                 break;
@@ -299,7 +296,7 @@ app_main(void)
                 break;
             case WAIT_FOR_EJECT:
                 // todo: replace with limit switch
-                if (ticks >= 45) {
+                if (ticks >= 30) {
                     state = PARK;
                 }
                 break;
@@ -310,7 +307,7 @@ app_main(void)
                 state = WAIT_FOR_PARK;
                 break;
             case WAIT_FOR_PARK:
-                if (ticks >= 2 * TIMER_FREQ_HZ) {
+                if (ticks >= 35) {
                     state = STOP;
                 }
                 break;
@@ -324,6 +321,9 @@ app_main(void)
         }
         movement_pid_update(TIMER_FREQ_HZ);
         ticks += 1;
+        telemetry.encoder_counts[0] = gpio_get_level(LIM3_GPIO);
+        telemetry.encoder_counts[1] = gpio_get_level(LIM4_GPIO);
+        telemetry.encoder_counts[2] = (int)state;
         xSemaphoreTake(control_loop_semaphore, portMAX_DELAY);
     }
 }
