@@ -9,23 +9,41 @@
 #include "servos.h"
 #include "movement.h"
 #include "ble_telemetry.h"
-#include "imu.h"
 
-/* LIMIT SWITCH GPIO */
+/* LIMIT SWITCH GPIO
+ *
+ * the limit switches are active high and should use internal pulldown resistors
+ */
 #define LIM1_GPIO   GPIO_NUM_45
 #define LIM2_GPIO   GPIO_NUM_35
 #define LIM3_GPIO   GPIO_NUM_9
 #define LIM4_GPIO   GPIO_NUM_10
 
-/* PUSHBUTTON GPIO */
+#define LIMIT_SWITCH_GPIO_MASK  (1ULL << LIM1_GPIO || 1ULL << LIM2_GPIO || 1ULL << LIM3_GPIO || 1ULL << LIM4_GPIO)
+
+#define SCISSOR_LIFT_TOP_LIM_GPIO       LIM3_GPIO
+#define SCISSOR_LIFT_BOTTOM_LIM_GPIO    LIM1_GPIO
+
+/* PUSHBUTTON GPIO
+ *
+ * the boot button is active low and should use internal pullup resistor
+ */
 #define BOOT_BUTTON_GPIO    GPIO_NUM_0
 
-/* LED GPIO */
+/* LED GPIO
+ *
+ * the single addressable LED included on this board
+ */
 #define LED_GPIO            GPIO_NUM_38
 
+/* CONTROL FSM TIMER CONFIG
+ *
+ * these parameters are for the timer interrupt used to ensure robot state updates occur at a fixed rate
+ */
 #define TIMER_RESOLUTION_HZ     1000000
 #define TIMER_FREQ_HZ           10
 
+/* CONTROL FSM - ROBOT STATES */
 typedef enum {
     IDLE = 0,
     GO,
@@ -54,10 +72,14 @@ typedef enum {
     STOP,
 } state_t;
 
-static SemaphoreHandle_t control_loop_semaphore;
-static gptimer_handle_t gptimer = 0;
-static led_strip_handle_t led_strip;
+static SemaphoreHandle_t control_loop_semaphore; // given from timer interrupt ISR, taken in robot control FSM
+static gptimer_handle_t gptimer = 0; // for the FSM interrupt
+static led_strip_handle_t led_strip; // for the on-board LED
 
+/* configures the on-board LED
+ *
+ * kinda annoying that it's an addressable LED and not just a regular one, more painful to use. RGB is cool though.
+ */
 static void
 configure_led(void)
 {
@@ -77,6 +99,7 @@ configure_led(void)
     ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
 }
 
+/* the timer interrupt called at a rate of TIMER_FREQ_HZ. don't do any actual work here, just use semaphore */
 static bool IRAM_ATTR
 timer_interrupt(gptimer_handle_t timer,
         const gptimer_alarm_event_data_t *eventData, void *userData)
@@ -87,6 +110,7 @@ timer_interrupt(gptimer_handle_t timer,
     return true;
 }
 
+/* this is pretty self explanatory */
 static void
 timer_setup(void)
 {
@@ -116,6 +140,7 @@ timer_setup(void)
 void
 app_main(void)
 {
+    /* initialise peripherals, GPIO, ... */
     control_loop_semaphore = xSemaphoreCreateBinary();
     configure_led();
     timer_setup();
@@ -145,7 +170,7 @@ app_main(void)
     gpio_config(&io_conf);
 
     gpio_config_t io_conf_2 = {
-        .pin_bit_mask = (1ULL << LIM1_GPIO || 1ULL << LIM2_GPIO || 1ULL << LIM3_GPIO || 1ULL << LIM4_GPIO),
+        .pin_bit_mask = LIMIT_SWITCH_GPIO_MASK,
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_ENABLE,
@@ -153,8 +178,9 @@ app_main(void)
     };
     gpio_config(&io_conf_2);
 
+    /* raise scissor lift until it reaches the top. avoids stalling servo too much */
     servo_winch(0.7f);
-    while (gpio_get_level(LIM3_GPIO) != 1) {
+    while (gpio_get_level(SCISSOR_LIFT_TOP_LIM_GPIO) != 1) {
         vTaskDelay(pdMS_TO_TICKS(10));
     }
     servo_winch(0.0f);
@@ -163,17 +189,24 @@ app_main(void)
     ESP_ERROR_CHECK(led_strip_refresh(led_strip));
 
     state_t state = IDLE;
-    uint32_t ticks = 0;
+    uint32_t ticks = 0; // incremented every iteration, used as a delay for timed state transitions
     int keep_winch_at_top = 1;
     while (1) {
+        /* our servo can't quite keep box at top unless we stall it, which
+         * is obviously not very good for it. if the keep_winch_at_top
+         * flag is set, we turn on the servo if the scissor lift isn't
+         * fully raised. this results in it bobbing up and down near the top
+         * position, which is satisfactory (and seems to be less bad for it)
+         */
         if (keep_winch_at_top) {
-            if (gpio_get_level(LIM3_GPIO) != 1) {
+            if (gpio_get_level(SCISSOR_LIFT_TOP_LIM_GPIO) != 1) {
                 servo_winch(0.5f);
             } else {
                 servo_winch(0.0f);
             }
         }
 
+        /* control FSM. nothing too exciting here */
         switch (state) {
             case IDLE:
                 if (!gpio_get_level(BOOT_BUTTON_GPIO)) {
@@ -216,7 +249,7 @@ app_main(void)
                 state = WAIT_FOR_LOWER;
                 break;
             case WAIT_FOR_LOWER:
-                if (gpio_get_level(LIM1_GPIO) == 1) {
+                if (gpio_get_level(SCISSOR_LIFT_BOTTOM_LIM_GPIO) == 1) {
                     state = SCOOP_BALLS;
                 }
                 break;
@@ -249,7 +282,7 @@ app_main(void)
                 state = WAIT_FOR_RAISE;
                 break;
             case WAIT_FOR_RAISE:
-                if (gpio_get_level(LIM3_GPIO) == 1) {
+                if (gpio_get_level(SCISSOR_LIFT_TOP_LIM_GPIO) == 1) {
                     state = GET_ON_RAMP;
                 }
                 break;
@@ -321,9 +354,6 @@ app_main(void)
         }
         movement_pid_update(TIMER_FREQ_HZ);
         ticks += 1;
-        telemetry.encoder_counts[0] = gpio_get_level(LIM3_GPIO);
-        telemetry.encoder_counts[1] = gpio_get_level(LIM4_GPIO);
-        telemetry.encoder_counts[2] = (int)state;
         xSemaphoreTake(control_loop_semaphore, portMAX_DELAY);
     }
 }

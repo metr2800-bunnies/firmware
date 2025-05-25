@@ -2,16 +2,21 @@
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 
+/* pinion servos */
 #define SERVO1_GPIO     GPIO_NUM_18
 #define SERVO2_GPIO     GPIO_NUM_8
+
+/* scissor lift winch servo */
 #define SERVO3_GPIO     GPIO_NUM_46
 
+/* LEDC config parameters */
 #define LEDC_TIMER              LEDC_TIMER_2
 #define LEDC_MODE               LEDC_LOW_SPEED_MODE
 #define LEDC_FREQUENCY_HZ       50
 #define LEDC_DUTY_RES           LEDC_TIMER_12_BIT
 #define DUTY_RANGE              (1 << 12)
 
+/* configure LEDC and GPIOs */
 void
 servo_init(void)
 {
@@ -51,6 +56,7 @@ servo_init(void)
     }
 }
 
+/* turns a speed in [-1,1] into a PWM signal with the appropriate 1-2ms pulse width for the specified servo */
 static void
 set(int servo, float x)
 {

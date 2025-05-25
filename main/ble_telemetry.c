@@ -1,3 +1,11 @@
+/* ble_telemetry
+ *
+ * this code is a little cursed, but just uses NimBLE to advertise a device with a single characteristic with
+ * notifications that can be subscribed to. when there's a subscriber, we send out whatever is in the global
+ * telemetry_data_t struct at TIMER_FREQ_HZ.
+ * this was surprisingly painful to get working but also super helpful for debugging.
+ */
+
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "freertos/FreeRTOS.h"

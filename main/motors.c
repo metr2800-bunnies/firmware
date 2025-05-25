@@ -1,3 +1,10 @@
+/* motors
+ *
+ * implements PID speed control for our motors (FIT0521), which have integrated quadrature encoders. with varying
+ * input voltages, disturbances, etc. we should still be able to hit the RPMs we are targeting. the BLE telemetry
+ * was helpful for tuning this.
+ */
+
 #include "motors.h"
 #include "ble_telemetry.h"
 #include "math.h"
@@ -5,8 +12,10 @@
 #include "tb6612fng.h"
 #include "pid.h"
 
-#define TICKS_PER_REV       (34*11)
-#define ENCODER_RESOLUTION  ((TICKS_PER_REV) * 4)
+#define TICKS_PER_REV       (34*11)     // this was 341.2 on the datasheet, which is WRONG and caused much confusion.
+#define ENCODER_RESOLUTION  ((TICKS_PER_REV) * 4)   // since we do 4X decoding
+
+/* PID-related */
 #define MAX_ERROR_SUM       50.0f
 #define MAX_RPM             210.0f
 #define DEADZONE_THRESHOLD  0.20f
@@ -38,6 +47,7 @@ reset_parameters(void)
         motors[i].target_rpm = 0;
         motors[i].last_rpm = 0;
         motors[i].last_tick_count = count;
+        // you could probably tune each motor individually but that seems like overkill
         motors[i].pid.ff = FF;
         motors[i].pid.kp = KP;
         motors[i].pid.ki = KI;
@@ -91,6 +101,7 @@ motor_update(int motor_index, int frequency_hz)
     int32_t delta = count - motor->last_tick_count;
     motor->last_tick_count = count;
 
+    /* apply some smoothing to the measured speed */
     float raw_rpm = (delta * frequency_hz * 60) / ENCODER_RESOLUTION;
     motor->last_rpm = (
         motor->last_rpm * (1.0f - RPM_SMOOTHING_ALPHA) +
