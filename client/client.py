@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# this script is a BLE telemetry client that records data from the robot to a CSV file
 import asyncio
 import struct
 from bleak import BleakClient, BleakScanner
@@ -42,33 +44,26 @@ async def main():
 
                 def telemetry_handler(sender, data):
                     try:
-                        unpacked = struct.unpack_from("<I4i4f4f6ff4f", data, 0)
+                        unpacked = struct.unpack_from("<I4i4f4f4f", data, 0)
                         packet_num = unpacked[0]
                         encoder = unpacked[1:5]
                         rpm = unpacked[5:9]
                         drive_power = unpacked[9:13]
-                        imu_raw = unpacked[13:19]
-                        yaw = unpacked[19]
-                        target_rpms = unpacked[20:24]
+                        target_rpms = unpacked[13:17]
 
                         write_headers = not os.path.exists('data.csv')
                         with open('data.csv', 'a') as file:
-                            #if write_headers:
-                            #    headers = (
-                            #        ["packet_num"] +
-                            #        [item for i in range(4)
-                            #         for item in (f'encoder_count_{i}', f'rpm_{i}', f'drive_power{i}')] +
-                            #        [f'imu_raw_{i}' for i in range(6)] +
-                            #        ["yaw"] +
-                            #        [f'target_rpm_{i}' for i in range(4)]
-                            #    )
-                            #    file.write(','.join(headers))
-                            #    file.write('\n')
-                            #motors = [item for i in range(4)
-                            #          for item in (encoder[i], rpm[i], drive_power[i])]
-                            #reordered = [packet_num] + motors + list(imu_raw) + [yaw] + list(target_rpms)
-                            reordered = [packet_num] + list(rpm) + list(target_rpms)
-                            file.write(','.join(map(str, reordered)))
+                            if write_headers:
+                                headers = (
+                                    ["packet_num"] +
+                                    [f'encoder_count_{i}' for i in range(4)] +
+                                    [f'rpm_{i}' for i in range(4)] +
+                                    [f'drive_power{i}' for i in range(4)] +
+                                    [f'target_rpm_{i}' for i in range(4)]
+                                )
+                                file.write(','.join(headers))
+                                file.write('\n')
+                            file.write(','.join(map(str, unpacked)))
                             file.write('\n')
                     except struct.error as e:
                         print(f"Error unpacking telemetry data: {e}")
